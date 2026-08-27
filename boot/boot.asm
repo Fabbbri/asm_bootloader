@@ -1,6 +1,8 @@
 BITS 16
 ORG 0x7C00
 
+KERNEL_SEGMENT equ 0x1000
+
 start:
     ; Inicializa un entorno conocido antes de utilizar datos o la pila.
     cli
@@ -21,6 +23,32 @@ start:
     int 0x10
 
     mov si, welcome_message
+    call print_string
+
+    ; Reinicia la unidad antes de leer el Stage 2.
+    xor ah, ah
+    mov dl, [boot_drive]
+    int 0x13
+    jc disk_error
+
+    ; Carga el Stage 2 desde el sector 2 en 0x1000:0x0000.
+    mov ax, KERNEL_SEGMENT
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, KERNEL_SECTORS
+    xor ch, ch
+    mov cl, 0x02
+    xor dh, dh
+    mov dl, [boot_drive]
+    int 0x13
+    jc disk_error
+
+    ; CS debe cambiar, por eso se utiliza un salto lejano.
+    jmp KERNEL_SEGMENT:0x0000
+
+disk_error:
+    mov si, disk_error_message
     call print_string
 
 halt:
@@ -46,6 +74,7 @@ print_string:
 boot_drive db 0
 welcome_message db 'CE4303 - Reloj/Cronometro', 0x0D, 0x0A
                 db 'Boot loader iniciado correctamente.', 0x0D, 0x0A, 0
+disk_error_message db 'Error al cargar el Stage 2.', 0x0D, 0x0A, 0
 
 ; Un sector de arranque tiene 512 bytes y finaliza con la firma 0xAA55.
 times 510 - ($ - $$) db 0

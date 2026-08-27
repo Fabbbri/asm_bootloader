@@ -78,3 +78,21 @@ QEMU emulator version 8.2.2
 GNU gdb (Ubuntu) 15.1-...
 ```
 
+## Estado actual
+
+El proyecto utiliza dos etapas en modo real de 16 bits:
+
+- `boot/boot.asm`: sector de arranque que el BIOS carga en `0x7C00`.
+- `src/kernel.asm`: aplicacion que Stage 1 carga en `0x1000:0x0000`.
+
+Stage 1 muestra una bienvenida, lee Stage 2 con `INT 13h` y le transfiere el
+control. Stage 2 muestra un mensaje de confirmacion y se detiene de forma segura.
+
+## Compilacion y ejecucion
+
+```bash
+make
+make inspect
+make run
+make clean
+```
