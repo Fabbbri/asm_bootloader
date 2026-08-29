@@ -31,7 +31,7 @@ $(DISK_IMG): $(BOOT_BIN) $(KERNEL_BIN)
 run: $(DISK_IMG)
 	@unset LD_LIBRARY_PATH SNAP_LIBRARY_PATH GIO_MODULE_DIR GTK_EXE_PREFIX \
 		GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH; \
-	exec $(QEMU) -drive format=raw,file=$(DISK_IMG)
+	exec $(QEMU) -drive format=raw,file=$(DISK_IMG) -rtc base=localtime
 
 inspect: $(DISK_IMG)
 	@test "$$(stat -c '%s' $(BOOT_BIN))" -eq 512

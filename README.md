@@ -86,7 +86,31 @@ El proyecto utiliza dos etapas en modo real de 16 bits:
 - `src/kernel.asm`: aplicacion que Stage 1 carga en `0x1000:0x0000`.
 
 Stage 1 muestra una bienvenida, lee Stage 2 con `INT 13h` y le transfiere el
-control. Stage 2 muestra un mensaje de confirmacion y se detiene de forma segura.
+control. Stage 2 solicita confirmacion antes de iniciar y presenta una interfaz
+basica para alternar entre los modos reloj y cronometro.
+
+Controles disponibles:
+
+- `Enter`: aceptar la confirmacion inicial.
+- `M`: cambiar entre reloj y cronometro.
+- `Q` o `Esc`: finalizar el programa.
+
+El modo reloj obtiene `HH:MM:SS` desde el RTC mediante `INT 1Ah`, funcion `02h`,
+y actualiza la pantalla cada segundo. El valor del cronometro sigue siendo
+provisional y se agregara en un avance posterior.
+
+## Interrupciones BIOS utilizadas
+
+| Interrupcion | Funcion | Uso en el codigo | Proposito |
+|---|---|---|---|
+| `INT 10h` | `AH=00h` — establecer modo de video | `mov ax, 0x0003`<br>`int 0x10` | Activa el modo de texto 80x25, limpia la pantalla y reinicia el cursor. Se usa al iniciar Stage 1 y al redibujar la interfaz. |
+| `INT 10h` | `AH=0Eh` — salida teletipo | `mov ah, 0x0E`<br>`mov al, caracter`<br>`int 0x10` | Imprime el caracter almacenado en `AL` y avanza el cursor. Se utiliza para mostrar todos los mensajes y valores de tiempo. |
+| `INT 10h` | `AH=02h` — posicionar cursor | `mov ah, 0x02`<br>`mov dh, fila`<br>`mov dl, columna`<br>`int 0x10` | Coloca el cursor en una posicion especifica. Permite actualizar `HH:MM:SS` sin redibujar toda la pantalla. |
+| `INT 13h` | `AH=00h` — reiniciar unidad | `xor ah, ah`<br>`mov dl, [boot_drive]`<br>`int 0x13` | Reinicia el estado de la unidad desde la que arranco el BIOS antes de intentar leer Stage 2. |
+| `INT 13h` | `AH=02h` — leer sectores | `mov ah, 0x02`<br>`mov al, KERNEL_SECTORS`<br>`mov cl, 0x02`<br>`int 0x13` | Lee Stage 2 desde el disco y lo copia a `ES:BX`. `DL` identifica la unidad y `CF` indica si ocurrio un error. |
+| `INT 16h` | `AH=00h` — leer tecla | `xor ah, ah`<br>`int 0x16` | Espera una tecla y la retira del buffer. Devuelve el codigo ASCII en `AL`; se usa en la confirmacion inicial y para consumir teclas detectadas. |
+| `INT 16h` | `AH=01h` — consultar teclado | `mov ah, 0x01`<br>`int 0x16`<br>`jz .idle` | Comprueba sin bloquear si hay una tecla disponible. Esto permite que el reloj siga actualizandose mientras no hay entrada. |
+| `INT 1Ah` | `AH=02h` — leer hora del RTC | `mov ah, 0x02`<br>`int 0x1A`<br>`jc .read_error` | Obtiene la hora del reloj de tiempo real: `CH` contiene horas, `CL` minutos y `DH` segundos en BCD. `CF` indica un error de lectura. |
 
 ## Compilacion y ejecucion
 
