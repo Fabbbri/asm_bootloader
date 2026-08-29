@@ -6,7 +6,7 @@ global efi_main
 
 extern console_print
 extern console_wait_for_key
-extern time_print_current
+extern clock_run
 
 ; EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 ; UEFI x86_64 usa la ABI de Microsoft:
@@ -23,7 +23,14 @@ efi_main:
     call console_print
 
     mov rcx, rbx
-    call time_print_current
+    lea rdx, [confirm_message]
+    call console_print
+
+    mov rcx, rbx
+    call console_wait_for_key
+
+    mov rcx, rbx
+    call clock_run
 
     mov rcx, rbx
     lea rdx, [exit_message]
@@ -46,7 +53,12 @@ welcome_message:
     dw 13, 10
     dw 0
 
+confirm_message:
+    dw __utf16__("Presiona cualquier tecla para entrar al modo interactivo.")
+    dw 13, 10
+    dw 0
+
 exit_message:
-    dw __utf16__("Presiona una tecla para salir.")
+    dw __utf16__("Programa finalizado. Presiona una tecla para salir.")
     dw 13, 10
     dw 0
