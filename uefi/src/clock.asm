@@ -9,6 +9,12 @@ extern console_print
 extern console_read_key
 extern console_set_attribute
 extern time_print_current
+extern alarm_cancel
+extern alarm_check
+extern alarm_configure
+extern alarm_is_triggered
+extern alarm_print_alert
+extern alarm_print_status
 extern stopwatch_print
 extern stopwatch_reset
 extern stopwatch_tick
@@ -18,6 +24,7 @@ COLOR_NORMAL equ 0x07
 COLOR_TITLE equ 0x0B
 COLOR_MODE equ 0x0E
 COLOR_HELP equ 0x0A
+COLOR_ALERT_SCREEN equ 0x4F
 
 ; Ejecuta el modo reloj con actualizacion periodica.
 ; Entrada:
@@ -29,6 +36,25 @@ clock_run:
     mov rbx, rcx
 
 .loop:
+    mov rcx, rbx
+    call alarm_check
+
+    mov rcx, rbx
+    call alarm_is_triggered
+    cmp al, 0
+    je .normal_screen
+
+    mov rcx, rbx
+    mov edx, COLOR_ALERT_SCREEN
+    call console_set_attribute
+    jmp .clear_screen
+
+.normal_screen:
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
+
+.clear_screen:
     mov rcx, rbx
     call console_clear
 
@@ -77,6 +103,12 @@ clock_run:
 
 .draw_help:
     mov rcx, rbx
+    call alarm_print_status
+
+    mov rcx, rbx
+    call alarm_print_alert
+
+    mov rcx, rbx
     mov edx, COLOR_HELP
     call console_set_attribute
 
@@ -106,6 +138,14 @@ clock_run:
     je .reset_stopwatch
     cmp ax, 'R'
     je .reset_stopwatch
+    cmp ax, 'a'
+    je .configure_alarm
+    cmp ax, 'A'
+    je .configure_alarm
+    cmp ax, 'c'
+    je .cancel_alarm
+    cmp ax, 'C'
+    je .cancel_alarm
 
 .wait_next_second:
     ; BootServices->Stall(1000000): espera 1 segundo.
@@ -121,11 +161,24 @@ clock_run:
     jmp .wait_next_second
 
 .toggle_stopwatch:
+    cmp byte [current_mode], 1
+    jne .wait_next_second
     call stopwatch_toggle
     jmp .wait_next_second
 
 .reset_stopwatch:
+    cmp byte [current_mode], 1
+    jne .wait_next_second
     call stopwatch_reset
+    jmp .wait_next_second
+
+.configure_alarm:
+    mov rcx, rbx
+    call alarm_configure
+    jmp .loop
+
+.cancel_alarm:
+    call alarm_cancel
     jmp .wait_next_second
 
 .exit:
@@ -157,7 +210,9 @@ mode_stopwatch:
 
 help:
     dw 13, 10
-    dw __utf16__("M: cambiar modo | S: iniciar/pausar | R: reiniciar | Q: salir")
+    dw __utf16__("M: modo | S: iniciar/pausar | R: reiniciar")
+    dw 13, 10
+    dw __utf16__("A: configurar alarma | C: cancelar alarma | Q: salir")
     dw 13, 10
     dw 0
 

@@ -3,8 +3,29 @@ DEFAULT REL
 
 section .text
 global time_print_current
+global time_get_hms
 
 extern console_print
+
+; Obtiene hora, minuto y segundo actuales.
+; Entrada:
+;   RCX = EFI_SYSTEM_TABLE*
+; Salida:
+;   AL = hora, DL = minuto, R8B = segundo
+time_get_hms:
+    sub rsp, 72
+
+    mov rax, [rcx + 88]
+    lea rcx, [rsp + 48]
+    xor edx, edx
+    call [rax + 24]
+
+    movzx eax, byte [rsp + 52]
+    movzx edx, byte [rsp + 53]
+    movzx r8d, byte [rsp + 54]
+
+    add rsp, 72
+    ret
 
 ; Lee la hora actual del firmware UEFI y la imprime como HH:MM:SS.
 ; Entrada:
@@ -15,22 +36,19 @@ time_print_current:
 
     mov rbx, rcx
 
-    ; RuntimeServices->GetTime(&current_time, NULL)
-    mov rax, [rbx + 88]
-    lea rcx, [rsp + 48]
-    xor edx, edx
-    call [rax + 24]
+    call time_get_hms
+    mov [rsp + 32], al
+    mov [rsp + 33], dl
+    mov [rsp + 34], r8b
 
-    ; EFI_TIME:
-    ;   +4 = Hour, +5 = Minute, +6 = Second
     lea rdi, [time_line + time_value_offset]
-    movzx eax, byte [rsp + 52]
+    movzx eax, byte [rsp + 32]
     call write_two_digits
     add rdi, 2
-    movzx eax, byte [rsp + 53]
+    movzx eax, byte [rsp + 33]
     call write_two_digits
     add rdi, 2
-    movzx eax, byte [rsp + 54]
+    movzx eax, byte [rsp + 34]
     call write_two_digits
 
     mov rcx, rbx

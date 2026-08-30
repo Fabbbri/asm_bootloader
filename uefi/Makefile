@@ -8,7 +8,9 @@ OBJS := $(BUILD_DIR)/boot.obj \
 	$(BUILD_DIR)/console.obj \
 	$(BUILD_DIR)/time.obj \
 	$(BUILD_DIR)/clock.obj \
-	$(BUILD_DIR)/stopwatch.obj
+	$(BUILD_DIR)/stopwatch.obj \
+	$(BUILD_DIR)/alarm.obj \
+	$(BUILD_DIR)/sound.obj
 EFI := $(EFI_DIR)/BOOTX64.EFI
 IMG := $(BUILD_DIR)/uefi.img
 OVMF_CODE := /usr/share/OVMF/OVMF_CODE_4M.fd
@@ -36,6 +38,12 @@ $(BUILD_DIR)/clock.obj: src/clock.asm | $(BUILD_DIR)
 	$(NASM) -f win64 $< -o $@
 
 $(BUILD_DIR)/stopwatch.obj: src/stopwatch.asm | $(BUILD_DIR)
+	$(NASM) -f win64 $< -o $@
+
+$(BUILD_DIR)/alarm.obj: src/alarm.asm | $(BUILD_DIR)
+	$(NASM) -f win64 $< -o $@
+
+$(BUILD_DIR)/sound.obj: src/sound.asm | $(BUILD_DIR)
 	$(NASM) -f win64 $< -o $@
 
 $(EFI): $(OBJS) | $(EFI_DIR)

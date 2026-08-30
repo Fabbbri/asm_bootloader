@@ -36,7 +36,8 @@ La division actual/planeada es:
 | `src/keyboard.asm` | Planeado. Lectura de teclas y mapeo de comandos del usuario. |
 | `src/clock.asm` | Implementado inicial. Modo reloj: mostrar y actualizar la hora actual. |
 | `src/stopwatch.asm` | Implementado inicial. Modo cronometro: iniciar, pausar, reanudar y reiniciar. |
-| `src/alarm.asm` | Planeado. Configuracion, comparacion y cancelacion de alarma. |
+| `src/alarm.asm` | Implementado inicial. Configuracion `HH:MM`, comparacion y cancelacion de alarma. |
+| `src/sound.asm` | Implementado inicial. Sonido de alarma mediante altavoz PC. |
 | `src/ui.asm` | Planeado. Pantalla principal, etiquetas, estado actual y mensajes al usuario. |
 
 ## Servicios UEFI usados
@@ -53,9 +54,10 @@ Para la defensa, esta es la equivalencia que se debe explicar:
 | Mostrar texto | `INT 10h` | `SystemTable->ConOut->OutputString` |
 | Leer teclado | `INT 16h` | `SystemTable->ConIn->ReadKeyStroke` y `BootServices->WaitForEvent` |
 | Obtener hora RTC | `INT 1Ah`, funcion `02h` | `RuntimeServices->GetTime` |
-| Esperar eventos | No aplica igual | `BootServices->WaitForEvent` |
+| Esperar/revisar eventos | No aplica igual | `BootServices->WaitForEvent` y `BootServices->CheckEvent` |
 | Retardo de 1 segundo | Ciclos/temporizador BIOS segun implementacion | `BootServices->Stall` |
 | Color/atributos de texto | `INT 10h` | `SystemTable->ConOut->SetAttribute` |
+| Sonido de alarma | Puertos del altavoz PC/PIT | Puertos x86 `0x43`, `0x42`, `0x61` |
 
 ### Lista de llamadas usadas o planeadas
 
@@ -77,30 +79,43 @@ Para la defensa, esta es la equivalencia que se debe explicar:
    - Uso planeado: esperar eventos de teclado y controlar actualizaciones.
    - Equivalente conceptual aproximado: espera de entrada/eventos del BIOS.
 
-4. `ConIn->ReadKeyStroke`
+4. `BootServices->CheckEvent`
+   - Estado: usado actualmente.
+   - Modulo: `src/console.asm`.
+   - Uso: revisar si hay una tecla disponible sin bloquear el reloj.
+   - Equivalente conceptual aproximado: consulta no bloqueante de teclado.
+
+5. `ConIn->ReadKeyStroke`
    - Estado: usado actualmente para consumir la tecla de salida; luego se usara
      para comandos interactivos.
    - Modulo actual: `src/console.asm`. Luego puede moverse a `src/keyboard.asm`.
    - Uso: leer comandos del usuario (`M`, `S`, `R`, `A`, `C`, `Q`).
    - Equivalente conceptual en BIOS legacy: `INT 16h`.
 
-5. `ConOut->ClearScreen`
+6. `ConOut->ClearScreen`
    - Estado: usado actualmente.
    - Modulo: `src/console.asm`.
    - Uso: limpiar pantalla para dibujar la interfaz.
    - Equivalente conceptual en BIOS legacy: `INT 10h`, modo texto/limpieza.
 
-6. `ConOut->SetAttribute`
+7. `ConOut->SetAttribute`
    - Estado: usado actualmente.
    - Modulo: `src/console.asm`.
-   - Uso: cambiar colores para la pantalla inicial; luego se usara para resaltar alarma o estados.
+   - Uso: cambiar colores para la pantalla inicial, modos, controles y alerta de alarma.
    - Equivalente conceptual en BIOS legacy: atributos de video con `INT 10h`.
 
-7. `BootServices->Stall`
+8. `BootServices->Stall`
    - Estado: usado actualmente.
    - Modulo: `src/clock.asm`.
    - Uso: esperar aproximadamente un segundo entre actualizaciones del reloj.
    - Equivalente conceptual: retardo controlado por firmware.
+
+9. Puertos x86 `0x43`, `0x42` y `0x61`
+   - Estado: usado actualmente.
+   - Modulo: `src/sound.asm`.
+   - Uso: configurar el PIT canal 2 y activar/desactivar el altavoz PC para la
+     alarma.
+   - Equivalente conceptual en BIOS legacy: manejo directo del speaker/PIT.
 
 ### Interrupciones/servicios por funcionalidad
 
@@ -137,15 +152,19 @@ programa.
 5. Modo cronometro
    - Modulos: `src/clock.asm` y `src/stopwatch.asm`.
    - Servicios UEFI usados: `BootServices->Stall` para marcar segundos,
-     `ConOut->OutputString` para mostrar el conteo, y `ConIn->ReadKeyStroke`
-     para iniciar, pausar y reiniciar.
+     `ConOut->OutputString` para mostrar el conteo, y
+     `BootServices->CheckEvent`/`ConIn->ReadKeyStroke` para iniciar, pausar y
+     reiniciar sin detener el reloj.
    - Interrupciones BIOS equivalentes: `INT 16h` para teclado e `INT 10h` para
      pantalla. El conteo del cronometro es interno e independiente de la hora
      real, como pide el enunciado.
+   - Restriccion implementada: las teclas `S` y `R` solo tienen efecto cuando
+     el modo actual es cronometro.
 
 6. Cambio de modo
    - Modulo: `src/clock.asm`.
-   - Servicio UEFI usado: `ConIn->ReadKeyStroke`.
+   - Servicios UEFI usados: `BootServices->CheckEvent` y
+     `ConIn->ReadKeyStroke`.
    - Interrupcion BIOS equivalente: `INT 16h`.
 
 7. Finalizacion
@@ -155,11 +174,14 @@ programa.
    - Interrupcion BIOS equivalente: `INT 16h` para detectar la tecla de salida.
 
 8. Alarma
-   - Estado: pendiente.
-   - Modulo planeado: `src/alarm.asm`.
-   - Servicios UEFI planeados: `RuntimeServices->GetTime` para comparar contra
-     la hora configurada, `ConIn->ReadKeyStroke` para capturar `HH:MM`, y
-     `ConOut->SetAttribute`/`ConOut->OutputString` para notificacion visual.
+   - Estado: implementacion inicial.
+   - Modulos: `src/alarm.asm` y `src/sound.asm`.
+   - Servicios UEFI usados: `RuntimeServices->GetTime` para comparar contra la
+     hora configurada, `ConIn->ReadKeyStroke` y `BootServices->WaitForEvent`
+     para capturar `HH:MM`, y `ConOut->SetAttribute`/`ConOut->OutputString`
+     para notificacion visual.
+   - Puertos x86 usados: `0x43`, `0x42` y `0x61` para generar sonido en el
+     altavoz PC.
    - Interrupciones BIOS equivalentes: `INT 1Ah` para RTC, `INT 16h` para
      teclado e `INT 10h` para pantalla/color.
 
@@ -168,8 +190,10 @@ programa.
 | Tecla | Accion |
 | ----- | ------ |
 | `M` | Cambiar entre modo reloj y modo cronometro. |
-| `S` | Iniciar o pausar el cronometro. |
-| `R` | Reiniciar el cronometro y dejarlo pausado. |
+| `S` | Iniciar o pausar el cronometro, solo en modo cronometro. |
+| `R` | Reiniciar el cronometro y dejarlo pausado, solo en modo cronometro. |
+| `A` | Configurar alarma en formato `HH:MM`. |
+| `C` | Cancelar la alarma configurada. |
 | `Q` | Finalizar el programa. |
 
 ## Nota sobre interrupciones y RTC
