@@ -7,11 +7,17 @@ global clock_run
 extern console_clear
 extern console_print
 extern console_read_key
+extern console_set_attribute
 extern time_print_current
 extern stopwatch_print
 extern stopwatch_reset
 extern stopwatch_tick
 extern stopwatch_toggle
+
+COLOR_NORMAL equ 0x07
+COLOR_TITLE equ 0x0B
+COLOR_MODE equ 0x0E
+COLOR_HELP equ 0x0A
 
 ; Ejecuta el modo reloj con actualizacion periodica.
 ; Entrada:
@@ -27,6 +33,10 @@ clock_run:
     call console_clear
 
     mov rcx, rbx
+    mov edx, COLOR_TITLE
+    call console_set_attribute
+
+    mov rcx, rbx
     lea rdx, [title]
     call console_print
 
@@ -34,8 +44,16 @@ clock_run:
     jne .draw_stopwatch
 
     mov rcx, rbx
+    mov edx, COLOR_MODE
+    call console_set_attribute
+
+    mov rcx, rbx
     lea rdx, [mode_clock]
     call console_print
+
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
 
     mov rcx, rbx
     call time_print_current
@@ -43,16 +61,32 @@ clock_run:
 
 .draw_stopwatch:
     mov rcx, rbx
+    mov edx, COLOR_MODE
+    call console_set_attribute
+
+    mov rcx, rbx
     lea rdx, [mode_stopwatch]
     call console_print
+
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
 
     mov rcx, rbx
     call stopwatch_print
 
 .draw_help:
     mov rcx, rbx
+    mov edx, COLOR_HELP
+    call console_set_attribute
+
+    mov rcx, rbx
     lea rdx, [help]
     call console_print
+
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
 
     mov rcx, rbx
     call console_read_key
@@ -95,6 +129,10 @@ clock_run:
     jmp .wait_next_second
 
 .exit:
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
+
     add rsp, 48
     pop rbx
     ret
