@@ -35,7 +35,7 @@ La division actual/planeada es:
 | `src/time.asm` | Implementado. Lectura de hora real mediante servicios UEFI y conversion a texto. |
 | `src/keyboard.asm` | Planeado. Lectura de teclas y mapeo de comandos del usuario. |
 | `src/clock.asm` | Implementado inicial. Modo reloj: mostrar y actualizar la hora actual. |
-| `src/stopwatch.asm` | Planeado. Modo cronometro: iniciar, pausar, reanudar y reiniciar. |
+| `src/stopwatch.asm` | Implementado inicial. Modo cronometro: iniciar, pausar, reanudar y reiniciar. |
 | `src/alarm.asm` | Planeado. Configuracion, comparacion y cancelacion de alarma. |
 | `src/ui.asm` | Planeado. Pantalla principal, etiquetas, estado actual y mensajes al usuario. |
 
@@ -54,6 +54,8 @@ Para la defensa, esta es la equivalencia que se debe explicar:
 | Leer teclado | `INT 16h` | `SystemTable->ConIn->ReadKeyStroke` y `BootServices->WaitForEvent` |
 | Obtener hora RTC | `INT 1Ah`, funcion `02h` | `RuntimeServices->GetTime` |
 | Esperar eventos | No aplica igual | `BootServices->WaitForEvent` |
+| Retardo de 1 segundo | Ciclos/temporizador BIOS segun implementacion | `BootServices->Stall` |
+| Color/atributos de texto | `INT 10h` | `SystemTable->ConOut->SetAttribute` |
 
 ### Lista de llamadas usadas o planeadas
 
@@ -98,6 +100,74 @@ Para la defensa, esta es la equivalencia que se debe explicar:
    - Modulo: `src/clock.asm`.
    - Uso: esperar aproximadamente un segundo entre actualizaciones del reloj.
    - Equivalente conceptual: retardo controlado por firmware.
+
+### Interrupciones/servicios por funcionalidad
+
+Esta lista se mantiene como bitacora para explicar que usa cada parte del
+programa.
+
+1. Bienvenida del bootloader
+   - Modulo: `boot/boot.asm`.
+   - Servicio UEFI usado: `ConOut->OutputString`.
+   - Interrupcion BIOS equivalente: `INT 10h` para salida de texto.
+
+2. Confirmacion inicial
+   - Modulos: `boot/boot.asm` y `src/console.asm`.
+   - Servicios UEFI usados: `BootServices->WaitForEvent` y
+     `ConIn->ReadKeyStroke`.
+   - Interrupcion BIOS equivalente: `INT 16h` para lectura de teclado.
+
+3. Modo reloj
+   - Modulos: `src/clock.asm`, `src/time.asm` y `src/console.asm`.
+   - Servicios UEFI usados: `RuntimeServices->GetTime`,
+     `ConOut->ClearScreen`, `ConOut->OutputString` y `BootServices->Stall`.
+   - Interrupciones BIOS equivalentes: `INT 1Ah` funcion `02h` para obtener la
+     hora del RTC, e `INT 10h` para actualizar pantalla.
+
+4. Actualizacion en tiempo real
+   - Modulo: `src/clock.asm`.
+   - Servicio UEFI usado: `BootServices->Stall(1000000)` para esperar
+     aproximadamente un segundo entre redibujados.
+   - Interrupcion BIOS equivalente: no hay una unica interrupcion obligatoria;
+     en legacy se podria usar el temporizador/RTC o un retardo controlado.
+
+5. Modo cronometro
+   - Modulos: `src/clock.asm` y `src/stopwatch.asm`.
+   - Servicios UEFI usados: `BootServices->Stall` para marcar segundos,
+     `ConOut->OutputString` para mostrar el conteo, y `ConIn->ReadKeyStroke`
+     para iniciar, pausar y reiniciar.
+   - Interrupciones BIOS equivalentes: `INT 16h` para teclado e `INT 10h` para
+     pantalla. El conteo del cronometro es interno e independiente de la hora
+     real, como pide el enunciado.
+
+6. Cambio de modo
+   - Modulo: `src/clock.asm`.
+   - Servicio UEFI usado: `ConIn->ReadKeyStroke`.
+   - Interrupcion BIOS equivalente: `INT 16h`.
+
+7. Finalizacion
+   - Modulos: `src/clock.asm`, `boot/boot.asm` y `src/console.asm`.
+   - Servicios UEFI usados: `ConIn->ReadKeyStroke`, `BootServices->WaitForEvent`
+     y retorno desde `efi_main`.
+   - Interrupcion BIOS equivalente: `INT 16h` para detectar la tecla de salida.
+
+8. Alarma
+   - Estado: pendiente.
+   - Modulo planeado: `src/alarm.asm`.
+   - Servicios UEFI planeados: `RuntimeServices->GetTime` para comparar contra
+     la hora configurada, `ConIn->ReadKeyStroke` para capturar `HH:MM`, y
+     `ConOut->SetAttribute`/`ConOut->OutputString` para notificacion visual.
+   - Interrupciones BIOS equivalentes: `INT 1Ah` para RTC, `INT 16h` para
+     teclado e `INT 10h` para pantalla/color.
+
+## Controles actuales
+
+| Tecla | Accion |
+| ----- | ------ |
+| `M` | Cambiar entre modo reloj y modo cronometro. |
+| `S` | Iniciar o pausar el cronometro. |
+| `R` | Reiniciar el cronometro y dejarlo pausado. |
+| `Q` | Finalizar el programa. |
 
 ## Nota sobre interrupciones y RTC
 
