@@ -101,7 +101,9 @@ Para la defensa, esta es la equivalencia que se debe explicar:
 7. `ConOut->SetAttribute`
    - Estado: usado actualmente.
    - Modulo: `src/console.asm`.
-   - Uso: cambiar colores para la pantalla inicial, modos, controles y alerta de alarma.
+   - Uso: cambiar colores para la pantalla inicial, modos, controles y alerta
+     de alarma. Cuando la alarma se dispara, la pantalla alterna entre rojo y
+     verde hasta que se cancele.
    - Equivalente conceptual en BIOS legacy: atributos de video con `INT 10h`.
 
 8. `BootServices->Stall`
@@ -179,7 +181,8 @@ programa.
    - Servicios UEFI usados: `RuntimeServices->GetTime` para comparar contra la
      hora configurada, `ConIn->ReadKeyStroke` y `BootServices->WaitForEvent`
      para capturar `HH:MM`, y `ConOut->SetAttribute`/`ConOut->OutputString`
-     para notificacion visual.
+     para notificacion visual. La pantalla alterna entre rojo y verde mientras
+     la alarma siga activa.
    - Puertos x86 usados: `0x43`, `0x42` y `0x61` para generar sonido en el
      altavoz PC.
    - Interrupciones BIOS equivalentes: `INT 1Ah` para RTC, `INT 16h` para

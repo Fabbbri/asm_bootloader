@@ -24,7 +24,8 @@ COLOR_NORMAL equ 0x07
 COLOR_TITLE equ 0x0B
 COLOR_MODE equ 0x0E
 COLOR_HELP equ 0x0A
-COLOR_ALERT_SCREEN equ 0x4F
+COLOR_ALERT_RED equ 0x4F
+COLOR_ALERT_GREEN equ 0x2F
 
 ; Ejecuta el modo reloj con actualizacion periodica.
 ; Entrada:
@@ -44,12 +45,23 @@ clock_run:
     cmp al, 0
     je .normal_screen
 
+    xor byte [alert_blink], 1
+    cmp byte [alert_blink], 0
+    je .alert_green
+
     mov rcx, rbx
-    mov edx, COLOR_ALERT_SCREEN
+    mov edx, COLOR_ALERT_RED
+    call console_set_attribute
+    jmp .clear_screen
+
+.alert_green:
+    mov rcx, rbx
+    mov edx, COLOR_ALERT_GREEN
     call console_set_attribute
     jmp .clear_screen
 
 .normal_screen:
+    mov byte [alert_blink], 0
     mov rcx, rbx
     mov edx, COLOR_NORMAL
     call console_set_attribute
@@ -217,3 +229,4 @@ help:
     dw 0
 
 current_mode db 0
+alert_blink db 0
