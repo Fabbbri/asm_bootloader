@@ -23,15 +23,16 @@ COLOR_ALERT equ 0x4F
 COLOR_PROMPT equ 0x0B
 COLOR_SUCCESS equ 0x0A
 
-; Configura la alarma leyendo HH:MM desde teclado.
+; Configura la alarma leyendo HHMM desde teclado.
 ; Entrada:
 ;   RCX = EFI_SYSTEM_TABLE*
 alarm_configure:
     push rbx
     push rsi
-    sub rsp, 48
+    sub rsp, 56
 
     mov rbx, rcx
+    mov byte [input_count], 0
 
     mov rcx, rbx
     call console_clear
@@ -45,24 +46,38 @@ alarm_configure:
     call console_print
 
     lea rsi, [input_buffer]
-    mov ecx, 5
 
 .read_loop:
-    push rcx
     mov rcx, rbx
     call console_read_key_blocking
-    pop rcx
 
+    cmp ax, 27
+    je .cancel
+
+    mov [typed_char], al
+    call is_digit
+    cmp al, 0
+    je .invalid_key
+
+    mov al, [typed_char]
     mov [rsi], al
     inc rsi
+    inc byte [input_count]
 
-    push rcx
     mov rcx, rbx
-    mov dx, ax
+    movzx edx, byte [typed_char]
     call console_print_char
-    pop rcx
 
-    loop .read_loop
+    cmp byte [input_count], 2
+    jne .check_done
+
+    mov rcx, rbx
+    mov dx, ':'
+    call console_print_char
+
+.check_done:
+    cmp byte [input_count], 4
+    jne .read_loop
 
     mov rcx, rbx
     mov edx, COLOR_NORMAL
@@ -78,6 +93,26 @@ alarm_configure:
 
     mov rcx, rbx
     lea rdx, [configured_msg]
+    call console_print
+    jmp .wait_done
+
+.cancel:
+    mov rcx, rbx
+    mov edx, COLOR_NORMAL
+    call console_set_attribute
+
+    mov rcx, rbx
+    lea rdx, [cancel_msg]
+    call console_print
+    jmp .wait_done
+
+.invalid_key:
+    mov rcx, rbx
+    mov edx, COLOR_ERROR
+    call console_set_attribute
+
+    mov rcx, rbx
+    lea rdx, [invalid_key_msg]
     call console_print
     jmp .wait_done
 
@@ -102,7 +137,7 @@ alarm_configure:
     mov rcx, rbx
     call console_read_key_blocking
 
-    add rsp, 48
+    add rsp, 56
     pop rsi
     pop rbx
     ret
@@ -123,7 +158,7 @@ alarm_check:
     jne .done
 
     push rbx
-    sub rsp, 40
+    sub rsp, 48
 
     mov rbx, rcx
     call time_get_hms
@@ -138,7 +173,7 @@ alarm_check:
     call sound_beep
 
 .finish:
-    add rsp, 40
+    add rsp, 48
     pop rbx
 .done:
     ret
@@ -223,13 +258,11 @@ validate_and_store:
     call is_digit
     cmp al, 0
     je .bad
-    cmp byte [input_buffer + 2], ':'
-    jne .bad
-    mov al, [input_buffer + 3]
+    mov al, [input_buffer + 2]
     call is_digit
     cmp al, 0
     je .bad
-    mov al, [input_buffer + 4]
+    mov al, [input_buffer + 3]
     call is_digit
     cmp al, 0
     je .bad
@@ -244,10 +277,10 @@ validate_and_store:
     ja .bad
     mov [alarm_hour], al
 
-    movzx eax, byte [input_buffer + 3]
+    movzx eax, byte [input_buffer + 2]
     sub eax, '0'
     imul eax, 10
-    movzx edx, byte [input_buffer + 4]
+    movzx edx, byte [input_buffer + 3]
     sub edx, '0'
     add eax, edx
     cmp eax, 59
@@ -293,7 +326,13 @@ section .data
 prompt:
     dw __utf16__("Configurar alarma")
     dw 13, 10
-    dw __utf16__("Ingrese hora en formato HH:MM: ")
+    dw __utf16__("Ingrese hora en formato HHMM.")
+    dw 13, 10
+    dw __utf16__("Rangos validos: HH 00-23, MM 00-59.")
+    dw 13, 10
+    dw __utf16__("Ejemplo: 0730 para 07:30. ESC cancela.")
+    dw 13, 10
+    dw __utf16__("Hora: ")
     dw 0
 
 configured_msg:
@@ -304,7 +343,19 @@ configured_msg:
 
 invalid_msg:
     dw 13, 10
-    dw __utf16__("Formato invalido. Use HH:MM, por ejemplo 07:30.")
+    dw __utf16__("Formato invalido. Use HH 00-23 y MM 00-59.")
+    dw 13, 10
+    dw 0
+
+invalid_key_msg:
+    dw 13, 10
+    dw __utf16__("Entrada invalida. Solo se permiten numeros del 0 al 9.")
+    dw 13, 10
+    dw 0
+
+cancel_msg:
+    dw 13, 10
+    dw __utf16__("Configuracion de alarma cancelada.")
     dw 13, 10
     dw 0
 
@@ -331,7 +382,9 @@ alert_msg:
     dw 13, 10
     dw 0
 
-input_buffer times 5 db 0
+input_buffer times 4 db 0
+input_count db 0
+typed_char db 0
 alarm_hour db 0
 alarm_minute db 0
 alarm_active db 0

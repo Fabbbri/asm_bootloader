@@ -36,7 +36,7 @@ La division actual/planeada es:
 | `src/keyboard.asm` | Planeado. Lectura de teclas y mapeo de comandos del usuario. |
 | `src/clock.asm` | Implementado inicial. Modo reloj: mostrar y actualizar la hora actual. |
 | `src/stopwatch.asm` | Implementado inicial. Modo cronometro: iniciar, pausar, reanudar y reiniciar. |
-| `src/alarm.asm` | Implementado inicial. Configuracion `HH:MM`, comparacion y cancelacion de alarma. |
+| `src/alarm.asm` | Implementado inicial. Configuracion `HHMM`, comparacion y cancelacion de alarma. |
 | `src/sound.asm` | Implementado inicial. Sonido de alarma mediante altavoz PC. |
 | `src/ui.asm` | Planeado. Pantalla principal, etiquetas, estado actual y mensajes al usuario. |
 
@@ -180,7 +180,7 @@ programa.
    - Modulos: `src/alarm.asm` y `src/sound.asm`.
    - Servicios UEFI usados: `RuntimeServices->GetTime` para comparar contra la
      hora configurada, `ConIn->ReadKeyStroke` y `BootServices->WaitForEvent`
-     para capturar `HH:MM`, y `ConOut->SetAttribute`/`ConOut->OutputString`
+     para capturar `HHMM`, y `ConOut->SetAttribute`/`ConOut->OutputString`
      para notificacion visual. La pantalla alterna entre rojo y verde mientras
      la alarma siga activa.
    - Puertos x86 usados: `0x43`, `0x42` y `0x61` para generar sonido en el
@@ -195,9 +195,13 @@ programa.
 | `M` | Cambiar entre modo reloj y modo cronometro. |
 | `S` | Iniciar o pausar el cronometro, solo en modo cronometro. |
 | `R` | Reiniciar el cronometro y dejarlo pausado, solo en modo cronometro. |
-| `A` | Configurar alarma en formato `HH:MM`. |
+| `A` | Configurar alarma en formato `HHMM`; `HH` debe estar entre `00` y `23`, `MM` entre `00` y `59`, y el `:` se muestra automaticamente. |
 | `C` | Cancelar la alarma configurada. |
 | `Q` | Finalizar el programa. |
+
+Durante la configuracion de alarma, `ESC` cancela y vuelve al modo interactivo.
+Si se presiona una tecla que no sea numero, se muestra un error y se vuelve al
+modo interactivo.
 
 ## Nota sobre interrupciones y RTC
 
