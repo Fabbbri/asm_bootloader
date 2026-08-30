@@ -6,6 +6,7 @@ global console_print
 global console_wait_for_key
 global console_clear
 global console_read_key
+global console_set_attribute
 
 ; Imprime una cadena CHAR16 terminada en cero.
 ; Entrada:
@@ -30,6 +31,20 @@ console_clear:
     mov rax, [rcx + 64]
     mov rcx, rax
     call [rax + 48]
+
+    add rsp, 40
+    ret
+
+; Cambia color de texto/fondo.
+; Entrada:
+;   RCX = EFI_SYSTEM_TABLE*
+;   EDX = atributo UEFI
+console_set_attribute:
+    sub rsp, 40
+
+    mov rax, [rcx + 64]
+    mov rcx, rax
+    call [rax + 40]
 
     add rsp, 40
     ret

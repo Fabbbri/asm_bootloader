@@ -31,7 +31,7 @@ La division actual/planeada es:
 | Archivo | Responsabilidad |
 | ------- | --------------- |
 | `boot/boot.asm` | Implementado. Punto de entrada UEFI (`efi_main`) y flujo principal. |
-| `src/console.asm` | Implementado. Rutinas de salida de texto, limpieza de pantalla y lectura de tecla. |
+| `src/console.asm` | Implementado. Rutinas de salida de texto, colores, limpieza de pantalla y lectura de tecla. |
 | `src/time.asm` | Implementado. Lectura de hora real mediante servicios UEFI y conversion a texto. |
 | `src/keyboard.asm` | Planeado. Lectura de teclas y mapeo de comandos del usuario. |
 | `src/clock.asm` | Implementado inicial. Modo reloj: mostrar y actualizar la hora actual. |
@@ -91,8 +91,9 @@ Para la defensa, esta es la equivalencia que se debe explicar:
    - Equivalente conceptual en BIOS legacy: `INT 10h`, modo texto/limpieza.
 
 6. `ConOut->SetAttribute`
-   - Estado: planeado.
-   - Uso: cambiar colores para resaltar alarma o estados.
+   - Estado: usado actualmente.
+   - Modulo: `src/console.asm`.
+   - Uso: cambiar colores para la pantalla inicial; luego se usara para resaltar alarma o estados.
    - Equivalente conceptual en BIOS legacy: atributos de video con `INT 10h`.
 
 7. `BootServices->Stall`
@@ -108,8 +109,10 @@ programa.
 
 1. Bienvenida del bootloader
    - Modulo: `boot/boot.asm`.
-   - Servicio UEFI usado: `ConOut->OutputString`.
-   - Interrupcion BIOS equivalente: `INT 10h` para salida de texto.
+   - Servicios UEFI usados: `ConOut->OutputString`, `ConOut->ClearScreen` y
+     `ConOut->SetAttribute`.
+   - Interrupcion BIOS equivalente: `INT 10h` para salida de texto, limpieza de
+     pantalla y atributos de color.
 
 2. Confirmacion inicial
    - Modulos: `boot/boot.asm` y `src/console.asm`.
