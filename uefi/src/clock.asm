@@ -19,6 +19,7 @@ extern stopwatch_print
 extern stopwatch_reset
 extern stopwatch_tick
 extern stopwatch_toggle
+extern sound_beep
 
 COLOR_NORMAL equ 0x07
 COLOR_TITLE equ 0x0B
@@ -160,11 +161,25 @@ clock_run:
     je .cancel_alarm
 
 .wait_next_second:
+    mov rcx, rbx
+    call alarm_is_triggered
+    cmp al, 0
+    je .stall_one_second
+
+    cmp byte [alert_blink], 1
+    jne .stall_one_second
+
+    mov rcx, rbx
+    call sound_beep
+    jmp .after_wait
+
+.stall_one_second:
     ; BootServices->Stall(1000000): espera 1 segundo.
     mov rax, [rbx + 96]
     mov ecx, 1000000
     call [rax + 248]
 
+.after_wait:
     call stopwatch_tick
     jmp .loop
 

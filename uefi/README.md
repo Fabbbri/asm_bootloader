@@ -116,7 +116,8 @@ Para la defensa, esta es la equivalencia que se debe explicar:
    - Estado: usado actualmente.
    - Modulo: `src/sound.asm`.
    - Uso: configurar el PIT canal 2 y activar/desactivar el altavoz PC para la
-     alarma.
+     alarma. Cuando la alarma se dispara, el programa alterna un segundo con
+     sonido y un segundo en silencio hasta que se cancele.
    - Equivalente conceptual en BIOS legacy: manejo directo del speaker/PIT.
 
 ### Interrupciones/servicios por funcionalidad
@@ -184,7 +185,8 @@ programa.
      para notificacion visual. La pantalla alterna entre rojo y verde mientras
      la alarma siga activa.
    - Puertos x86 usados: `0x43`, `0x42` y `0x61` para generar sonido en el
-     altavoz PC.
+     altavoz PC. El sonido se repite de forma intercalada hasta cancelar la
+     alarma.
    - Interrupciones BIOS equivalentes: `INT 1Ah` para RTC, `INT 16h` para
      teclado e `INT 10h` para pantalla/color.
 
@@ -200,6 +202,8 @@ programa.
 | `Q` | Finalizar el programa. |
 
 Durante la configuracion de alarma, `ESC` cancela y vuelve al modo interactivo.
+En UEFI, `ESC` se detecta mediante su scan code (`0x17`) porque no siempre se
+entrega como caracter ASCII.
 Si se presiona una tecla que no sea numero, se muestra un error y se vuelve al
 modo interactivo.
 

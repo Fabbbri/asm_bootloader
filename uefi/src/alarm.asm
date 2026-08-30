@@ -14,7 +14,6 @@ extern console_print
 extern console_print_char
 extern console_read_key_blocking
 extern console_set_attribute
-extern sound_beep
 extern time_get_hms
 
 COLOR_NORMAL equ 0x07
@@ -51,6 +50,8 @@ alarm_configure:
     mov rcx, rbx
     call console_read_key_blocking
 
+    cmp dx, 0x17
+    je .cancel
     cmp ax, 27
     je .cancel
 
@@ -169,8 +170,6 @@ alarm_check:
     jne .finish
 
     mov byte [alarm_triggered], 1
-    mov rcx, rbx
-    call sound_beep
 
 .finish:
     add rsp, 48

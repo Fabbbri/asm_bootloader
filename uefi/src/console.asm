@@ -86,6 +86,7 @@ console_wait_for_key:
 ;   RCX = EFI_SYSTEM_TABLE*
 ; Salida:
 ;   AX = caracter Unicode
+;   DX = scan code UEFI
 console_read_key_blocking:
     push rbx
     sub rsp, 64
@@ -109,6 +110,7 @@ console_read_key_blocking:
     lea rdx, [rsp + 48]
     call [rax + 8]
 
+    movzx edx, word [rsp + 48]
     movzx eax, word [rsp + 50]
 
     add rsp, 64

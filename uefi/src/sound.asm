@@ -27,9 +27,9 @@ sound_beep:
     or al, 0x03
     out 0x61, al
 
-    ; BootServices->Stall(180000): duracion del beep.
+    ; BootServices->Stall(1000000): duracion del beep.
     mov rax, [rbx + 96]
-    mov ecx, 180000
+    mov ecx, 1000000
     call [rax + 248]
 
     ; Apaga el speaker.
