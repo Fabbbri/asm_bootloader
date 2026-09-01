@@ -10,15 +10,23 @@ Stage 1 muestra una bienvenida, lee Stage 2 con `INT 13h` y le transfiere el
 control. Stage 2 solicita confirmacion antes de iniciar y presenta una interfaz
 basica para alternar entre los modos reloj y cronometro.
 
-Controles disponibles:
+Controles generales:
 
 - `Enter`: aceptar la confirmacion inicial.
 - `M`: cambiar entre reloj y cronometro.
 - `Q` o `Esc`: finalizar el programa.
 
+Controles disponibles unicamente en modo cronometro:
+
+- `Espacio`: iniciar, pausar o reanudar el cronometro.
+- `R`: reiniciar el cronometro y dejarlo detenido.
+
 El modo reloj obtiene `HH:MM:SS` desde el RTC mediante `INT 1Ah`, funcion `02h`,
-y actualiza la pantalla cada segundo. El valor del cronometro sigue siendo
-provisional y se agregara en un avance posterior.
+y actualiza la pantalla cada segundo. El cronometro utiliza el contador de ticks
+del BIOS mediante `INT 1Ah`, funcion `00h`, por lo que mantiene un conteo
+independiente del RTC incluso cuando se muestra el modo reloj.
+Mientras el modo reloj esta visible, el cronometro puede seguir contando en
+segundo plano, pero sus teclas de control se ignoran hasta regresar a su modo.
 
 ## Interrupciones BIOS utilizadas
 
@@ -31,6 +39,7 @@ provisional y se agregara en un avance posterior.
 | `INT 13h` | `AH=02h` — leer sectores | `mov ah, 0x02`<br>`mov al, KERNEL_SECTORS`<br>`mov cl, 0x02`<br>`int 0x13` | Lee Stage 2 desde el disco y lo copia a `ES:BX`. `DL` identifica la unidad y `CF` indica si ocurrio un error. |
 | `INT 16h` | `AH=00h` — leer tecla | `xor ah, ah`<br>`int 0x16` | Espera una tecla y la retira del buffer. Devuelve el codigo ASCII en `AL`; se usa en la confirmacion inicial y para consumir teclas detectadas. |
 | `INT 16h` | `AH=01h` — consultar teclado | `mov ah, 0x01`<br>`int 0x16`<br>`jz .idle` | Comprueba sin bloquear si hay una tecla disponible. Esto permite que el reloj siga actualizandose mientras no hay entrada. |
+| `INT 1Ah` | `AH=00h` — leer ticks del BIOS | `xor ah, ah`<br>`int 0x1A` | Devuelve en `CX:DX` los ticks transcurridos desde medianoche. Se usa como base de tiempo independiente para iniciar, pausar y reanudar el cronometro. |
 | `INT 1Ah` | `AH=02h` — leer hora del RTC | `mov ah, 0x02`<br>`int 0x1A`<br>`jc .read_error` | Obtiene la hora del reloj de tiempo real: `CH` contiene horas, `CL` minutos y `DH` segundos en BCD. `CF` indica un error de lectura. |
 
 ## Compilacion y ejecucion
