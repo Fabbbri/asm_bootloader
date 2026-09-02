@@ -28,6 +28,23 @@ independiente del RTC incluso cuando se muestra el modo reloj.
 Mientras el modo reloj esta visible, el cronometro puede seguir contando en
 segundo plano, pero sus teclas de control se ignoran hasta regresar a su modo.
 
+## Modularidad
+
+La organizacion de `src/` replica las responsabilidades de la version UEFI,
+limitandose a las funciones implementadas actualmente en Legacy:
+
+| Archivo | Responsabilidad |
+|---|---|
+| `src/kernel.asm` | Punto de entrada de Stage 2, inicializacion, confirmacion y finalizacion. |
+| `src/clock.asm` | Ciclo interactivo, cambio de modo, despacho de teclas e interfaz principal. |
+| `src/console.asm` | Texto, limpieza de pantalla y teclado mediante `INT 10h` e `INT 16h`. |
+| `src/time.asm` | Lectura y presentacion de la hora RTC mediante `INT 1Ah/AH=02h`. |
+| `src/stopwatch.asm` | Estados, conteo y presentacion del cronometro mediante `INT 1Ah/AH=00h`. |
+
+UEFI ensambla cada modulo como objeto `win64` y los enlaza. Legacy, en cambio,
+necesita conservar un binario plano de 16 bits, por lo que `kernel.asm` integra
+los modulos con `%include`; el resultado sigue siendo un solo `kernel.bin`.
+
 ## Interrupciones BIOS utilizadas
 
 | Interrupcion | Funcion | Uso en el codigo | Proposito |

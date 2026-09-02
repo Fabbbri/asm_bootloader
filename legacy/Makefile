@@ -5,6 +5,10 @@ BUILD_DIR := build
 BOOT_SRC := boot/boot.asm
 BOOT_BIN := $(BUILD_DIR)/boot.bin
 KERNEL_SRC := src/kernel.asm
+KERNEL_MODULES := src/clock.asm \
+	src/console.asm \
+	src/stopwatch.asm \
+	src/time.asm
 KERNEL_BIN := $(BUILD_DIR)/kernel.bin
 KERNEL_SECTORS := 16
 DISK_IMG := $(BUILD_DIR)/disk.img
@@ -19,8 +23,8 @@ $(BUILD_DIR):
 $(BOOT_BIN): $(BOOT_SRC) | $(BUILD_DIR)
 	$(NASM) -f bin -D KERNEL_SECTORS=$(KERNEL_SECTORS) $< -o $@
 
-$(KERNEL_BIN): $(KERNEL_SRC) | $(BUILD_DIR)
-	$(NASM) -f bin $< -o $@
+$(KERNEL_BIN): $(KERNEL_SRC) $(KERNEL_MODULES) | $(BUILD_DIR)
+	$(NASM) -f bin -I src/ $< -o $@
 	@test "$$(stat -c '%s' $@)" -le "$$(( $(KERNEL_SECTORS) * 512 ))"
 	truncate -s "$$(( $(KERNEL_SECTORS) * 512 ))" $@
 
