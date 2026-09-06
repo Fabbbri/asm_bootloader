@@ -166,6 +166,11 @@ clock_run:
     je .exit
     cmp ax, 'Q'
     je .exit
+    ; Reinicio global: tambien funciona mientras se configura la alarma.
+    cmp ax, 'r'
+    je .reset_stopwatch
+    cmp ax, 'R'
+    je .reset_stopwatch
     cmp byte [rsp + 32], 0
     jne .edit_alarm
     cmp ax, 'm'
@@ -176,10 +181,6 @@ clock_run:
     je .toggle_stopwatch
     cmp ax, 'S'
     je .toggle_stopwatch
-    cmp ax, 'r'
-    je .reset_stopwatch
-    cmp ax, 'R'
-    je .reset_stopwatch
     cmp ax, 'a'
     je .configure_alarm
     cmp ax, 'A'
@@ -223,8 +224,6 @@ clock_run:
     jmp .wait_next_second
 
 .reset_stopwatch:
-    cmp byte [current_mode], 1
-    jne .wait_next_second
     call stopwatch_reset
     jmp .wait_next_second
 

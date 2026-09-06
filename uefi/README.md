@@ -74,7 +74,7 @@ Para la defensa, esta es la equivalencia que se debe explicar:
    - Equivalente conceptual en BIOS legacy: `INT 1Ah`, funcion `02h`.
 
 3. `BootServices->WaitForEvent`
-   - Estado: usado actualmente para esperar una tecla antes de salir.
+   - Estado: usado actualmente para la confirmacion inicial.
    - Modulo: `src/console.asm`.
    - Uso planeado: esperar eventos de teclado y controlar actualizaciones.
    - Equivalente conceptual aproximado: espera de entrada/eventos del BIOS.
@@ -161,7 +161,7 @@ programa.
    - Interrupciones BIOS equivalentes: `INT 16h` para teclado e `INT 10h` para
      pantalla. El conteo del cronometro es interno e independiente de la hora
      real, como pide el enunciado.
-   - Restriccion implementada: las teclas `S` y `R` solo tienen efecto cuando
+   - Restriccion implementada: la tecla `S` solo tiene efecto cuando
      el modo actual es cronometro.
 
 6. Cambio de modo
@@ -172,8 +172,8 @@ programa.
 
 7. Finalizacion
    - Modulos: `src/clock.asm`, `boot/boot.asm` y `src/console.asm`.
-   - Servicios UEFI usados: `ConIn->ReadKeyStroke`, `BootServices->WaitForEvent`
-     y retorno desde `efi_main`.
+   - Servicios UEFI usados: `ConIn->ReadKeyStroke` y retorno desde `efi_main`,
+     sin una segunda espera de teclado.
    - Interrupcion BIOS equivalente: `INT 16h` para detectar la tecla de salida.
 
 8. Alarma
@@ -196,10 +196,10 @@ programa.
 | ----- | ------ |
 | `M` | Cambiar entre modo reloj y modo cronometro. |
 | `S` | Iniciar o pausar el cronometro, solo en modo cronometro. |
-| `R` | Reiniciar el cronometro y dejarlo pausado, solo en modo cronometro. |
+| `R` | Reiniciar el cronometro y dejarlo pausado desde cualquier modo, incluso al configurar la alarma. |
 | `A` | Configurar alarma en formato `HHMM`; `HH` debe estar entre `00` y `23`, `MM` entre `00` y `59`, y el `:` se muestra automaticamente. |
 | `C` | Cancelar la alarma configurada. |
-| `Q` | Finalizar el programa. |
+| `Q` | Finalizar y retornar al firmware sin pedir otra tecla, incluso en la bienvenida o al configurar la alarma. |
 
 La configuracion de alarma se muestra en una pantalla aparte. El cronometro y
 la comprobacion de la alarma siguen funcionando en segundo plano mientras se
@@ -210,10 +210,10 @@ El teclado conserva la frecuencia de consulta actual: aproximadamente una tecla
 por segundo.
 
 Durante la configuracion de alarma, `ESC` cancela la captura y `Q` finaliza
-el modo interactivo.
+el programa. `R` reinicia el cronometro sin descartar los digitos ingresados.
 En UEFI, `ESC` se detecta mediante su scan code (`0x17`) porque no siempre se
 entrega como caracter ASCII.
-Si se presiona una tecla que no sea numero, se muestra un error y se vuelve al
+Si se presiona una tecla que no sea numero ni uno de estos controles, se muestra un error y se vuelve al
 modo interactivo.
 
 ## Nota sobre interrupciones y RTC

@@ -5,7 +5,7 @@ section .text
 global efi_main
 
 extern console_print
-extern console_wait_for_key
+extern console_read_key_blocking
 extern console_clear
 extern console_set_attribute
 extern clock_run
@@ -53,7 +53,11 @@ efi_main:
     call console_print
 
     mov rcx, rbx
-    call console_wait_for_key
+    call console_read_key_blocking
+    cmp ax, 'q'
+    je .exit
+    cmp ax, 'Q'
+    je .exit
 
     mov rcx, rbx
     mov edx, COLOR_NORMAL
@@ -62,12 +66,10 @@ efi_main:
     mov rcx, rbx
     call clock_run
 
+.exit:
     mov rcx, rbx
     lea rdx, [exit_message]
     call console_print
-
-    mov rcx, rbx
-    call console_wait_for_key
 
     mov rcx, rbx
     mov edx, COLOR_NORMAL
@@ -99,11 +101,11 @@ boot_details:
     dw 0
 
 confirm_message:
-    dw __utf16__("Presiona cualquier tecla para entrar al modo interactivo.")
+    dw __utf16__("Presiona una tecla para entrar al modo interactivo (Q: salir).")
     dw 13, 10
     dw 0
 
 exit_message:
-    dw __utf16__("Programa finalizado. Presiona una tecla para salir.")
+    dw __utf16__("Programa finalizado.")
     dw 13, 10
     dw 0
