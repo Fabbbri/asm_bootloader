@@ -7,6 +7,7 @@ EFI_DIR := $(BUILD_DIR)/esp/EFI/BOOT
 OBJS := $(BUILD_DIR)/boot.obj \
 	$(BUILD_DIR)/console.obj \
 	$(BUILD_DIR)/time.obj \
+	$(BUILD_DIR)/timer.obj \
 	$(BUILD_DIR)/clock.obj \
 	$(BUILD_DIR)/stopwatch.obj \
 	$(BUILD_DIR)/alarm.obj \
@@ -15,7 +16,7 @@ EFI := $(EFI_DIR)/BOOTX64.EFI
 IMG := $(BUILD_DIR)/uefi.img
 OVMF_CODE := /usr/share/OVMF/OVMF_CODE_4M.fd
 
-.PHONY: all run run-term inspect clean
+.PHONY: all run run-term inspect test clean
 
 all: $(IMG)
 
@@ -32,6 +33,9 @@ $(BUILD_DIR)/console.obj: src/console.asm | $(BUILD_DIR)
 	$(NASM) -f win64 $< -o $@
 
 $(BUILD_DIR)/time.obj: src/time.asm | $(BUILD_DIR)
+	$(NASM) -f win64 $< -o $@
+
+$(BUILD_DIR)/timer.obj: src/timer.asm | $(BUILD_DIR)
 	$(NASM) -f win64 $< -o $@
 
 $(BUILD_DIR)/clock.obj: src/clock.asm | $(BUILD_DIR)
@@ -79,6 +83,9 @@ run-term: $(IMG)
 inspect: $(EFI) $(IMG)
 	file $(EFI)
 	mdir -i $(IMG) ::/EFI/BOOT
+
+test: $(IMG)
+	python3 tests/timing.py "$(QEMU)" "$(OVMF_CODE)" "$(IMG)"
 
 clean:
 	rm -rf $(BUILD_DIR)

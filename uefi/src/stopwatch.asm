@@ -4,7 +4,7 @@ DEFAULT REL
 section .text
 global stopwatch_print
 global stopwatch_reset
-global stopwatch_tick
+global stopwatch_update
 global stopwatch_toggle
 
 extern console_print
@@ -14,11 +14,15 @@ extern console_print
 ;   RCX = EFI_SYSTEM_TABLE*
 stopwatch_print:
     push rbx
-    sub rsp, 32
+    sub rsp, 48
 
     mov rbx, rcx
 
-    mov rax, [elapsed_seconds]
+    mov rax, [elapsed_ticks]
+    xor edx, edx
+    mov ecx, 100
+    div rcx
+    mov [rsp + 32], edx      ; centesimas, conservadas durante el formateo
     xor edx, edx
     mov ecx, 3600
     div rcx
@@ -40,6 +44,9 @@ stopwatch_print:
     add r11, 2
     mov eax, r10d
     call write_two_digits
+    add r11, 2
+    mov eax, [rsp + 32]
+    call write_two_digits
 
     mov rcx, rbx
     lea rdx, [stopwatch_line]
@@ -59,15 +66,19 @@ stopwatch_print:
     call console_print
 
 .done:
-    add rsp, 32
+    add rsp, 48
     pop rbx
     ret
 
-; Si el cronometro esta corriendo, suma un segundo.
-stopwatch_tick:
+; RCX = contador de ticks de 10 ms. Acumula tambien el tiempo de redibujado.
+; Se llama antes de procesar teclas; las pausas conservan las fracciones.
+stopwatch_update:
+    mov rax, rcx
+    sub rax, [last_tick]
+    mov [last_tick], rcx
     cmp byte [is_running], 0
     je .done
-    inc qword [elapsed_seconds]
+    add [elapsed_ticks], rax
 .done:
     ret
 
@@ -78,7 +89,7 @@ stopwatch_toggle:
 
 ; Reinicia el cronometro y lo deja pausado.
 stopwatch_reset:
-    mov qword [elapsed_seconds], 0
+    mov qword [elapsed_ticks], 0
     mov byte [is_running], 0
     ret
 
@@ -106,7 +117,7 @@ section .data
 stopwatch_line:
     dw __utf16__("Cronometro: ")
 stopwatch_value_offset equ $ - stopwatch_line
-    dw __utf16__("00:00:00")
+    dw __utf16__("00:00:00.00")
     dw 13, 10
     dw 0
 
@@ -120,5 +131,6 @@ paused_line:
     dw 13, 10
     dw 0
 
-elapsed_seconds dq 0
+elapsed_ticks dq 0
+last_tick dq 0
 is_running db 0

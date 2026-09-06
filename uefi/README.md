@@ -35,6 +35,7 @@ La division actual/planeada es:
 | `src/time.asm` | Implementado. Lectura de hora real mediante servicios UEFI y conversion a texto. |
 | `src/keyboard.asm` | Planeado. Lectura de teclas y mapeo de comandos del usuario. |
 | `src/clock.asm` | Implementado inicial. Modo reloj: mostrar y actualizar la hora actual. |
+| `src/timer.asm` | Temporizador UEFI periodico de 10 ms y contador de ticks. |
 | `src/stopwatch.asm` | Implementado inicial. Modo cronometro: iniciar, pausar, reanudar y reiniciar. |
 | `src/alarm.asm` | Implementado inicial. Configuracion `HHMM`, comparacion y cancelacion de alarma. |
 | `src/sound.asm` | Implementado inicial. Sonido de alarma mediante altavoz PC. |
@@ -55,7 +56,7 @@ Para la defensa, esta es la equivalencia que se debe explicar:
 | Leer teclado | `INT 16h` | `SystemTable->ConIn->ReadKeyStroke` y `BootServices->WaitForEvent` |
 | Obtener hora RTC | `INT 1Ah`, funcion `02h` | `RuntimeServices->GetTime` |
 | Esperar/revisar eventos | No aplica igual | `BootServices->WaitForEvent` y `BootServices->CheckEvent` |
-| Retardo de 1 segundo | Ciclos/temporizador BIOS segun implementacion | `BootServices->Stall` |
+| Temporizacion | Temporizador BIOS segun implementacion | `CreateEvent`, `SetTimer` y `CloseEvent` |
 | Color/atributos de texto | `INT 10h` | `SystemTable->ConOut->SetAttribute` |
 | Sonido de alarma | Puertos del altavoz PC/PIT | Puertos x86 `0x43`, `0x42`, `0x61` |
 
@@ -109,7 +110,7 @@ Para la defensa, esta es la equivalencia que se debe explicar:
 8. `BootServices->Stall`
    - Estado: usado actualmente.
    - Modulo: `src/clock.asm`.
-   - Uso: esperar aproximadamente un segundo entre actualizaciones del reloj.
+   - Uso: espera corta de 10 ms entre consultas de teclado; no mide el cronometro.
    - Equivalente conceptual: retardo controlado por firmware.
 
 9. Puertos x86 `0x43`, `0x42` y `0x61`
@@ -141,20 +142,22 @@ programa.
 3. Modo reloj
    - Modulos: `src/clock.asm`, `src/time.asm` y `src/console.asm`.
    - Servicios UEFI usados: `RuntimeServices->GetTime`,
-     `ConOut->ClearScreen`, `ConOut->OutputString` y `BootServices->Stall`.
+     `ConOut->ClearScreen`, `ConOut->OutputString` y temporizador UEFI.
    - Interrupciones BIOS equivalentes: `INT 1Ah` funcion `02h` para obtener la
      hora del RTC, e `INT 10h` para actualizar pantalla.
 
 4. Actualizacion en tiempo real
    - Modulo: `src/clock.asm`.
-   - Servicio UEFI usado: `BootServices->Stall(1000000)` para esperar
-     aproximadamente un segundo entre redibujados.
+   - Servicios UEFI usados: `CreateEvent` y `SetTimer` para un callback
+     periodico de 10 ms. Cada 100 ticks se redibuja la pantalla; las teclas
+     tambien provocan un redibujado inmediato. `CloseEvent` libera el timer
+     antes de retornar al firmware.
    - Interrupcion BIOS equivalente: no hay una unica interrupcion obligatoria;
      en legacy se podria usar el temporizador/RTC o un retardo controlado.
 
 5. Modo cronometro
    - Modulos: `src/clock.asm` y `src/stopwatch.asm`.
-   - Servicios UEFI usados: `BootServices->Stall` para marcar segundos,
+   - Servicios UEFI usados: `CreateEvent` y `SetTimer` para contar ticks,
      `ConOut->OutputString` para mostrar el conteo, y
      `BootServices->CheckEvent`/`ConIn->ReadKeyStroke` para iniciar, pausar y
      reiniciar sin detener el reloj.
@@ -206,8 +209,9 @@ la comprobacion de la alarma siguen funcionando en segundo plano mientras se
 ingresan los cuatro digitos; una alarma activa se notifica tambien en esta
 pantalla. La alarma anterior permanece vigente
 hasta completar una hora valida. No se requiere una tecla adicional para volver.
-El teclado conserva la frecuencia de consulta actual: aproximadamente una tecla
-por segundo.
+El teclado se consulta con esperas de 10 ms cuando no hay entrada. No se espera
+un segundo por tecla ni durante el sonido. El tiempo de dibujo y la latencia del
+firmware tambien influyen en la respuesta.
 
 Durante la configuracion de alarma, `ESC` cancela la captura y `Q` finaliza
 el programa. `R` reinicia el cronometro sin descartar los digitos ingresados.
@@ -266,3 +270,28 @@ USB/
     └── BOOT/
         └── BOOTX64.EFI
 ```
+
+## Temporizacion del cronometro
+
+El callback de `src/timer.asm` incrementa un contador alineado de 64 bits a
+`TPL_NOTIFY`; no imprime ni espera. `stopwatch_update` acumula la diferencia
+entre lecturas de ese contador mientras el cronometro esta corriendo, incluso
+cuando la pantalla se redibuja o se configura una alarma. Las pausas conservan
+las fracciones de segundo; reiniciar borra el acumulado y lo deja pausado.
+La hora del reloj y la comparacion de alarmas siguen usando `GetTime`.
+
+El sonido se activa/desactiva sin esperas segun la fase del temporizador.
+Al salir se apaga el altavoz y se cierra el evento. Si no se puede crear o
+programar el evento, se muestra un error y se retorna al firmware.
+
+Esto elimina el retraso causado por sumar un segundo por vuelta del bucle.
+La resolucion nominal es 10 ms; la precision depende del temporizador del
+firmware y de la entrega de sus notificaciones, no es una garantia de tiempo
+real estricto. El cronometro muestra HH:MM:SS.cc y actualiza solo su contador cada 50 ms
+mediante SetCursorPosition, sin limpiar toda la pantalla en cada actualizacion.
+
+Referencia: [servicios UEFI de eventos y temporizadores](https://uefi.org/specs/UEFI/2.10_A/07_Services_Boot_Services.html).
+
+Prueba automatizada en QEMU (requiere Python 3): `make test`. Comprueba avance,
+pausa, entrada rapida de HHMM, cancelacion de alarma activa, reinicio y salida.
+El registro de consola se guarda en `build/uefi.test.log`.

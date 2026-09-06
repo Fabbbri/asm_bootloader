@@ -9,6 +9,16 @@ global console_read_key
 global console_read_key_blocking
 global console_print_char
 global console_set_attribute
+global console_set_cursor
+
+; RCX = EFI_SYSTEM_TABLE*, EDX = columna, R8D = fila (desde cero).
+console_set_cursor:
+    sub rsp, 40
+    mov rax, [rcx + 64]
+    mov rcx, rax
+    call [rax + 56]
+    add rsp, 40
+    ret
 
 ; Imprime una cadena CHAR16 terminada en cero.
 ; Entrada:
