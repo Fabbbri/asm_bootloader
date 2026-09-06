@@ -32,7 +32,8 @@ time_get_hms:
 ;   RCX = EFI_SYSTEM_TABLE*
 time_print_current:
     push rbx
-    sub rsp, 80
+    push rdi                ; RDI es no volatil en la ABI UEFI x64.
+    sub rsp, 88             ; Mantener RSP alineado a 16 antes de cada call.
 
     mov rbx, rcx
 
@@ -55,7 +56,8 @@ time_print_current:
     lea rdx, [time_line]
     call console_print
 
-    add rsp, 80
+    add rsp, 88
+    pop rdi
     pop rbx
     ret
 

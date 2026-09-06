@@ -156,7 +156,8 @@ alarm_is_triggered:
 ;   RCX = EFI_SYSTEM_TABLE*
 alarm_print_status:
     push rbx
-    sub rsp, 32
+    push rdi                ; Preservar el registro del llamador.
+    sub rsp, 40             ; 32 bytes de shadow space y alineacion a 16.
 
     mov rbx, rcx
 
@@ -181,7 +182,8 @@ alarm_print_status:
     call console_print
 
 .done:
-    add rsp, 32
+    add rsp, 40
+    pop rdi
     pop rbx
     ret
 
