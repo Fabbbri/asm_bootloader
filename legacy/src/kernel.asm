@@ -1,12 +1,8 @@
 ; =============================================================================
 ; Stage 2 - Punto de entrada Legacy BIOS
 ;
-; Stage 1 carga este binario en 0x1000:0x0000. Este archivo conserva solamente
-; la inicializacion, confirmacion y finalizacion; las responsabilidades de la
-; aplicacion se separan igual que en uefi/src.
-;
-; Los modulos se incorporan con %include porque Legacy genera un binario plano
-; de 16 bits, sin el enlazador PE32+ utilizado por UEFI.
+; Stage 1 carga este binario en 0x1000:0x0000. Aqui se preparan los segmentos,
+; la pila y el flujo de entrada/salida de la aplicacion.
 ; =============================================================================
 
 BITS 16
@@ -19,7 +15,7 @@ KEY_ENTER  equ 0x0D
 KEY_ESCAPE equ 0x1B
 
 start:
-    ; Stage 1 entra mediante un salto lejano a 0x1000:0x0000.
+    ; DS y ES deben apuntar al segmento donde Stage 1 cargo el binario.
     cli
     mov ax, cs
     mov ds, ax
@@ -32,7 +28,7 @@ start:
     sti
     cld
 
-    ; Conserva la bienvenida de Stage 1 hasta que el usuario confirme.
+    ; La aplicacion no inicia hasta recibir ENTER.
     mov si, confirmation_message
     call console_print
 
@@ -69,8 +65,10 @@ confirmation_message db 'Stage 2 cargado correctamente.', 0x0D, 0x0A
 
 exit_message db 'Programa finalizado.', 0x0D, 0x0A, 0
 
-; La ruta de inclusion se configura en el Makefile mediante "-I src/".
+; NASM concatena estos modulos para producir un unico binario plano.
 %include "console.asm"
 %include "time.asm"
 %include "stopwatch.asm"
+%include "sound.asm"
+%include "alarm.asm"
 %include "clock.asm"

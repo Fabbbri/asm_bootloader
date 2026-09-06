@@ -1,10 +1,11 @@
+; Stage 1: inicializa el entorno, carga Stage 2 y transfiere el control.
 BITS 16
 ORG 0x7C00
 
 KERNEL_SEGMENT equ 0x1000
 
 start:
-    ; Inicializa un entorno conocido antes de utilizar datos o la pila.
+    ; Segmentos y pila conocidos mientras se manipula el sector de arranque.
     cli
     xor ax, ax
     mov ds, ax
@@ -14,8 +15,7 @@ start:
     sti
     cld
 
-    ; El BIOS entrega la unidad de arranque en DL. Se conserva para cuando el
-    ; Stage 1 tenga que cargar el Stage 2 desde disco.
+    ; El BIOS entrega la unidad de arranque en DL.
     mov [boot_drive], dl
 
     ; El modo de texto 03h también limpia la pantalla.
@@ -25,13 +25,13 @@ start:
     mov si, welcome_message
     call print_string
 
-    ; Reinicia la unidad antes de leer el Stage 2.
+    ; Reinicia la unidad antes de la lectura CHS.
     xor ah, ah
     mov dl, [boot_drive]
     int 0x13
     jc disk_error
 
-    ; Carga el Stage 2 desde el sector 2 en 0x1000:0x0000.
+    ; Lee Stage 2 desde cilindro 0, cabeza 0, sector 2.
     mov ax, KERNEL_SEGMENT
     mov es, ax
     xor bx, bx
@@ -44,7 +44,7 @@ start:
     int 0x13
     jc disk_error
 
-    ; CS debe cambiar, por eso se utiliza un salto lejano.
+    ; El salto lejano actualiza CS con el segmento de Stage 2.
     jmp KERNEL_SEGMENT:0x0000
 
 disk_error:

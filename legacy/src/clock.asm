@@ -1,8 +1,7 @@
 ; =============================================================================
 ; Controlador de reloj/cronometro
 ;
-; Mantiene el ciclo interactivo, selecciona el modo visible y coordina consola,
-; RTC y cronometro.
+; Coordina la interfaz, el teclado y las actualizaciones periodicas.
 ; =============================================================================
 
 BITS 16
@@ -13,6 +12,10 @@ clock_run:
     call clock_draw_interface
 
 .main_loop:
+    ; La alarma y el cronometro avanzan aunque no sean el modo visible.
+    call alarm_check
+    call alarm_update_notification
+
     call stopwatch_update
     test al, al
     jz .update_clock
@@ -27,6 +30,7 @@ clock_run:
     call time_update
 
 .read_keyboard:
+    ; La consulta no bloqueante permite seguir actualizando el tiempo.
     call console_read_key
     test al, al
     jz .idle
@@ -36,9 +40,22 @@ clock_run:
     cmp al, 'M'
     je .toggle_mode
 
-    ; ESPACIO y R solo tienen efecto cuando el cronometro esta visible.
-    cmp byte [current_mode], MODE_STOPWATCH
-    jne .check_exit
+    ; A y C pertenecen exclusivamente al modo reloj.
+    cmp byte [current_mode], MODE_CLOCK
+    jne .stopwatch_controls
+
+    cmp al, 'a'
+    je .configure_alarm
+    cmp al, 'A'
+    je .configure_alarm
+    cmp al, 'c'
+    je .cancel_alarm
+    cmp al, 'C'
+    je .cancel_alarm
+    jmp .check_exit
+
+.stopwatch_controls:
+    ; ESPACIO y R pertenecen exclusivamente al cronometro.
     cmp al, ' '
     je .toggle_stopwatch
     cmp al, 'r'
@@ -56,7 +73,7 @@ clock_run:
     jmp .main_loop
 
 .idle:
-    ; El timer BIOS despierta periodicamente la CPU para actualizar el tiempo.
+    ; El timer BIOS despierta la CPU del HLT periodicamente.
     hlt
     jmp .main_loop
 
@@ -75,7 +92,20 @@ clock_run:
     call stopwatch_print
     jmp .main_loop
 
+.configure_alarm:
+    call alarm_configure
+    cmp al, 2
+    je .exit
+    call clock_draw_interface
+    jmp .main_loop
+
+.cancel_alarm:
+    call alarm_cancel
+    call clock_draw_interface
+    jmp .main_loop
+
 .exit:
+    call alarm_shutdown
     ret
 
 ; Reconstruye la pantalla segun current_mode.
@@ -93,6 +123,8 @@ clock_draw_interface:
     mov si, clock_controls_message
     call console_print
     call time_force_refresh
+    call alarm_print_status
+    call alarm_redraw_notification
     ret
 
 .stopwatch:
@@ -117,6 +149,7 @@ stopwatch_screen db 'Modo: CRONOMETRO', 0x0D, 0x0A
 
 clock_controls_message db 0x0D, 0x0A
                        db '[M] Cambiar modo', 0x0D, 0x0A
+                       db '[A] Configurar alarma  [C] Cancelar alarma', 0x0D, 0x0A
                        db '[Q/ESC] Finalizar', 0x0D, 0x0A, 0
 
 stopwatch_controls_message db 0x0D, 0x0A

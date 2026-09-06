@@ -1,8 +1,7 @@
 ; =============================================================================
 ; Cronometro independiente
 ;
-; Mantiene el conteo, sus estados y su presentacion usando los ticks de 
-; INT 1Ah/AH=00h como base temporal.
+; Usa los ticks de INT 1Ah/AH=00h como base independiente del RTC.
 ; =============================================================================
 
 BITS 16
@@ -11,8 +10,7 @@ STOPWATCH_STOPPED equ 0
 STOPWATCH_RUNNING equ 1
 STOPWATCH_PAUSED  equ 2
 
-; El contador BIOS avanza aproximadamente 18.2 veces por segundo. Se escala
-; por 10 para conservar la fraccion: 182 unidades equivalen a un segundo.
+; 18.2 ticks/s se representa como 182/10 para evitar punto flotante.
 BIOS_TICK_SCALE       equ 10
 BIOS_TICKS_PER_SECOND equ 182
 BIOS_TICKS_DAY_HIGH   equ 0x0018
@@ -84,7 +82,7 @@ stopwatch_update:
     or si, bx
     jz .unchanged
 
-    ; Multiplica el delta BX:AX por 10 usando 10x = 8x + 2x.
+    ; Escala el delta de 32 bits por 10: 10x = 8x + 2x.
     shl ax, 1
     rcl bx, 1
     mov si, ax
@@ -96,7 +94,7 @@ stopwatch_update:
     add ax, si
     adc bx, di
 
-    ; Agrega la fraccion pendiente y convierte a segundos completos.
+    ; El residuo conserva la fraccion para la siguiente actualizacion.
     add ax, [stopwatch_tick_fraction]
     adc bx, 0
     mov dx, bx

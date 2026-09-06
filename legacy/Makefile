@@ -1,12 +1,15 @@
 NASM ?= nasm
 QEMU ?= qemu-system-i386
+AUDIO_DRIVER ?= pipewire
 
 BUILD_DIR := build
 BOOT_SRC := boot/boot.asm
 BOOT_BIN := $(BUILD_DIR)/boot.bin
 KERNEL_SRC := src/kernel.asm
 KERNEL_MODULES := src/clock.asm \
+	src/alarm.asm \
 	src/console.asm \
+	src/sound.asm \
 	src/stopwatch.asm \
 	src/time.asm
 KERNEL_BIN := $(BUILD_DIR)/kernel.bin
@@ -33,9 +36,16 @@ $(DISK_IMG): $(BOOT_BIN) $(KERNEL_BIN)
 	dd if=$(KERNEL_BIN) of=$@ bs=512 seek=1 conv=notrunc status=none
 
 run: $(DISK_IMG)
-	@unset LD_LIBRARY_PATH SNAP_LIBRARY_PATH GIO_MODULE_DIR GTK_EXE_PREFIX \
+	@run_img="$$(mktemp --tmpdir legacy-disk.XXXXXX.img)"; \
+	cp $(DISK_IMG) "$$run_img"; \
+	trap 'rm -f "$$run_img"' EXIT INT TERM; \
+	unset LD_LIBRARY_PATH SNAP_LIBRARY_PATH GIO_MODULE_DIR GTK_EXE_PREFIX \
 		GTK_IM_MODULE_FILE GTK_MODULES GTK_PATH; \
-	exec $(QEMU) -drive format=raw,file=$(DISK_IMG) -rtc base=localtime
+	$(QEMU) \
+		-drive format=raw,file="$$run_img" \
+		-rtc base=localtime \
+		-audiodev $(AUDIO_DRIVER),id=audio0 \
+		-machine pcspk-audiodev=audio0
 
 inspect: $(DISK_IMG)
 	@test "$$(stat -c '%s' $(BOOT_BIN))" -eq 512

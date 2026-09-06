@@ -1,13 +1,12 @@
 ; =============================================================================
 ; Hora real mediante RTC
 ;
-; Obtiene HH:MM:SS mediante el servicio RTC del BIOS y actualiza solamente el 
-; campo de hora de la interfaz.
+; Lee HH:MM:SS del RTC y actualiza el campo de hora de la interfaz.
 ; =============================================================================
 
 BITS 16
 
-; Fuerza una escritura inmediata de la hora y luego realiza la lectura RTC.
+; Invalida la cache del segundo para forzar un redibujado.
 time_force_refresh:
     mov byte [last_rtc_second], 0xFF
     call time_update
@@ -67,6 +66,49 @@ time_update:
     pop ax
     ret
 
+; Imprime una lectura del RTC sin usar las coordenadas del modo reloj.
+; Preserva: AX, BX, CX, DX y SI.
+time_print_current_line:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+
+    mov si, current_time_label
+    call console_print
+
+    mov ah, 0x02
+    int 0x1A
+    jc .read_error
+
+    mov al, ch
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, cl
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, dh
+    call time_print_bcd
+    jmp .newline
+
+.read_error:
+    mov si, rtc_error_value
+    call console_print
+
+.newline:
+    mov si, time_newline
+    call console_print
+
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
 ; Posiciona el cursor al inicio del campo HH:MM:SS del modo reloj.
 time_set_cursor:
     mov ah, 0x02
@@ -102,3 +144,5 @@ rtc_hour db 0
 rtc_minute db 0
 rtc_second db 0
 rtc_error_value db '--:--:--', 0
+current_time_label db 'Hora actual: ', 0
+time_newline db 0x0D, 0x0A, 0
