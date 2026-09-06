@@ -5,14 +5,14 @@ section .text
 global alarm_cancel
 global alarm_check
 global alarm_configure
+global alarm_is_editing
+global alarm_handle_key
+global alarm_print_editor
 global alarm_is_triggered
 global alarm_print_alert
 global alarm_print_status
 
-extern console_clear
 extern console_print
-extern console_print_char
-extern console_read_key_blocking
 extern console_set_attribute
 extern time_get_hms
 
@@ -22,124 +22,91 @@ COLOR_ALERT equ 0x4F
 COLOR_PROMPT equ 0x0B
 COLOR_SUCCESS equ 0x0A
 
-; Configura la alarma leyendo HHMM desde teclado.
-; Entrada:
-;   RCX = EFI_SYSTEM_TABLE*
+; Editor no bloqueante: el bucle principal entrega una tecla por iteracion.
+; alarm_configure inicia la captura y retorna inmediatamente.
 alarm_configure:
-    push rbx
-    push rsi
-    sub rsp, 56
-
-    mov rbx, rcx
+    mov byte [editing], 1
     mov byte [input_count], 0
+    mov qword [editor_message], 0
+    mov word [input_display], '_'
+    mov word [input_display + 2], '_'
+    mov word [input_display + 6], '_'
+    mov word [input_display + 8], '_'
+    ret
 
-    mov rcx, rbx
-    call console_clear
+; Salida: AL = 1 durante la captura.
+alarm_is_editing:
+    movzx eax, byte [editing]
+    ret
 
-    mov rcx, rbx
-    mov edx, COLOR_PROMPT
-    call console_set_attribute
-
-    mov rcx, rbx
-    lea rdx, [prompt]
-    call console_print
-
-    lea rsi, [input_buffer]
-
-.read_loop:
-    mov rcx, rbx
-    call console_read_key_blocking
-
+; Entrada: AX = Unicode, DX = scan code UEFI. No espera teclas.
+alarm_handle_key:
     cmp dx, 0x17
     je .cancel
     cmp ax, 27
     je .cancel
+    test ax, ax
+    jz .done
+    cmp ax, '0'
+    jb .invalid_key
+    cmp ax, '9'
+    ja .invalid_key
 
-    mov [typed_char], al
-    call is_digit
-    cmp al, 0
-    je .invalid_key
-
-    mov al, [typed_char]
-    mov [rsi], al
-    inc rsi
+    movzx ecx, byte [input_count]
+    lea r8, [input_buffer]
+    mov [r8 + rcx], al
+    mov edx, ecx
+    cmp ecx, 2
+    jb .store_display
+    inc edx
+.store_display:
+    lea r8, [input_display]
+    mov [r8 + rdx*2], ax
     inc byte [input_count]
-
-    mov rcx, rbx
-    movzx edx, byte [typed_char]
-    call console_print_char
-
-    cmp byte [input_count], 2
-    jne .check_done
-
-    mov rcx, rbx
-    mov dx, ':'
-    call console_print_char
-
-.check_done:
     cmp byte [input_count], 4
-    jne .read_loop
+    jne .done
 
-    mov rcx, rbx
-    mov edx, COLOR_NORMAL
-    call console_set_attribute
-
+    sub rsp, 40
     call validate_and_store
-    cmp al, 0
-    je .invalid
-
-    mov rcx, rbx
-    mov edx, COLOR_SUCCESS
-    call console_set_attribute
-
-    mov rcx, rbx
-    lea rdx, [configured_msg]
-    call console_print
-    jmp .wait_done
-
+    add rsp, 40
+    test al, al
+    jz .invalid
+    lea rax, [configured_msg]
+    jmp .finish
 .cancel:
-    mov rcx, rbx
-    mov edx, COLOR_NORMAL
-    call console_set_attribute
-
-    mov rcx, rbx
-    lea rdx, [cancel_msg]
-    call console_print
-    jmp .wait_done
-
+    lea rax, [cancel_msg]
+    jmp .finish
 .invalid_key:
-    mov rcx, rbx
-    mov edx, COLOR_ERROR
-    call console_set_attribute
-
-    mov rcx, rbx
-    lea rdx, [invalid_key_msg]
-    call console_print
-    jmp .wait_done
-
+    lea rax, [invalid_key_msg]
+    jmp .finish
 .invalid:
-    mov rcx, rbx
-    mov edx, COLOR_ERROR
-    call console_set_attribute
+    lea rax, [invalid_msg]
+.finish:
+    mov [editor_message], rax
+    mov byte [editing], 0
+.done:
+    ret
 
-    mov rcx, rbx
-    lea rdx, [invalid_msg]
+; Entrada: RCX = EFI_SYSTEM_TABLE*. Redibuja la captura sin detener el reloj.
+alarm_print_editor:
+    push rbx
+    sub rsp, 32
+    mov rbx, rcx
+    cmp byte [editing], 0
+    je .message
+    lea rdx, [prompt]
     call console_print
-
-.wait_done:
     mov rcx, rbx
-    mov edx, COLOR_NORMAL
-    call console_set_attribute
-
-    mov rcx, rbx
-    lea rdx, [continue_msg]
+    lea rdx, [input_display]
     call console_print
-
-    mov rcx, rbx
-    call console_read_key_blocking
-
-    add rsp, 56
-    pop rsi
+    jmp .done
+.message:
+    mov rdx, [editor_message]
+    test rdx, rdx
+    jz .done
+    call console_print
+.done:
+    add rsp, 32
     pop rbx
     ret
 
@@ -274,7 +241,7 @@ validate_and_store:
     add eax, edx
     cmp eax, 23
     ja .bad
-    mov [alarm_hour], al
+    mov r9b, al
 
     movzx eax, byte [input_buffer + 2]
     sub eax, '0'
@@ -284,6 +251,7 @@ validate_and_store:
     add eax, edx
     cmp eax, 59
     ja .bad
+    mov [alarm_hour], r9b
     mov [alarm_minute], al
 
     mov byte [alarm_active], 1
@@ -358,11 +326,6 @@ cancel_msg:
     dw 13, 10
     dw 0
 
-continue_msg:
-    dw __utf16__("Presiona una tecla para volver.")
-    dw 13, 10
-    dw 0
-
 alarm_line:
     dw __utf16__("Alarma: ")
 alarm_value_offset equ $ - alarm_line
@@ -383,7 +346,10 @@ alert_msg:
 
 input_buffer times 4 db 0
 input_count db 0
-typed_char db 0
+editing db 0
+editor_message dq 0
+input_display:
+    dw __utf16__("__:__"), 13, 10, 0
 alarm_hour db 0
 alarm_minute db 0
 alarm_active db 0

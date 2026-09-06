@@ -122,6 +122,7 @@ console_read_key_blocking:
 ;   RCX = EFI_SYSTEM_TABLE*
 ; Salida:
 ;   AX = caracter Unicode, o 0 si no hay tecla disponible.
+;   DX = scan code UEFI, o 0 si no hay tecla disponible.
 console_read_key:
     push rbx
     sub rsp, 64
@@ -145,11 +146,13 @@ console_read_key:
     test rax, rax
     jnz .no_key
 
+    movzx edx, word [rsp + 48]
     movzx eax, word [rsp + 50]
     jmp .done
 
 .no_key:
     xor eax, eax
+    xor edx, edx
 
 .done:
     add rsp, 64

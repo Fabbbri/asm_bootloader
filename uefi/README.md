@@ -180,8 +180,8 @@ programa.
    - Estado: implementacion inicial.
    - Modulos: `src/alarm.asm` y `src/sound.asm`.
    - Servicios UEFI usados: `RuntimeServices->GetTime` para comparar contra la
-     hora configurada, `ConIn->ReadKeyStroke` y `BootServices->WaitForEvent`
-     para capturar `HHMM`, y `ConOut->SetAttribute`/`ConOut->OutputString`
+     hora configurada, `ConIn->ReadKeyStroke` y `BootServices->CheckEvent`
+     para capturar `HHMM` sin bloquear el bucle principal, y `ConOut->SetAttribute`/`ConOut->OutputString`
      para notificacion visual. La pantalla alterna entre rojo y verde mientras
      la alarma siga activa.
    - Puertos x86 usados: `0x43`, `0x42` y `0x61` para generar sonido en el
@@ -201,7 +201,16 @@ programa.
 | `C` | Cancelar la alarma configurada. |
 | `Q` | Finalizar el programa. |
 
-Durante la configuracion de alarma, `ESC` cancela y vuelve al modo interactivo.
+La configuracion de alarma se muestra en una pantalla aparte. El cronometro y
+la comprobacion de la alarma siguen funcionando en segundo plano mientras se
+ingresan los cuatro digitos; una alarma activa se notifica tambien en esta
+pantalla. La alarma anterior permanece vigente
+hasta completar una hora valida. No se requiere una tecla adicional para volver.
+El teclado conserva la frecuencia de consulta actual: aproximadamente una tecla
+por segundo.
+
+Durante la configuracion de alarma, `ESC` cancela la captura y `Q` finaliza
+el modo interactivo.
 En UEFI, `ESC` se detecta mediante su scan code (`0x17`) porque no siempre se
 entrega como caracter ASCII.
 Si se presiona una tecla que no sea numero, se muestra un error y se vuelve al

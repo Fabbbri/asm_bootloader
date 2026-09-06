@@ -12,6 +12,9 @@ extern time_print_current
 extern alarm_cancel
 extern alarm_check
 extern alarm_configure
+extern alarm_is_editing
+extern alarm_handle_key
+extern alarm_print_editor
 extern alarm_is_triggered
 extern alarm_print_alert
 extern alarm_print_status
@@ -70,6 +73,11 @@ clock_run:
 .clear_screen:
     mov rcx, rbx
     call console_clear
+
+    ; La captura tiene su propia pantalla, pero comparte el bucle de tiempo.
+    call alarm_is_editing
+    test al, al
+    jnz .draw_alarm_editor
 
     mov rcx, rbx
     mov edx, COLOR_TITLE
@@ -134,11 +142,32 @@ clock_run:
     call console_set_attribute
 
     mov rcx, rbx
+    call alarm_print_editor
+    jmp .read_key
+
+.draw_alarm_editor:
+    mov rcx, rbx
+    mov edx, COLOR_TITLE
+    call console_set_attribute
+
+    mov rcx, rbx
+    call alarm_print_editor
+
+    ; Una alarma previa sigue notificandose incluso durante la captura.
+    mov rcx, rbx
+    call alarm_print_alert
+
+.read_key:
+    call alarm_is_editing
+    mov [rsp + 32], al
+    mov rcx, rbx
     call console_read_key
     cmp ax, 'q'
     je .exit
     cmp ax, 'Q'
     je .exit
+    cmp byte [rsp + 32], 0
+    jne .edit_alarm
     cmp ax, 'm'
     je .switch_mode
     cmp ax, 'M'
@@ -199,10 +228,14 @@ clock_run:
     call stopwatch_reset
     jmp .wait_next_second
 
+.edit_alarm:
+    call alarm_handle_key
+    jmp .wait_next_second
+
 .configure_alarm:
     mov rcx, rbx
     call alarm_configure
-    jmp .loop
+    jmp .wait_next_second
 
 .cancel_alarm:
     call alarm_cancel
