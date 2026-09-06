@@ -35,6 +35,12 @@ clock_run:
     test al, al
     jz .idle
 
+    ; R es global, incluso cuando se muestra el reloj.
+    cmp al, 'r'
+    je .reset_stopwatch
+    cmp al, 'R'
+    je .reset_stopwatch
+
     cmp al, 'm'
     je .toggle_mode
     cmp al, 'M'
@@ -55,13 +61,9 @@ clock_run:
     jmp .check_exit
 
 .stopwatch_controls:
-    ; ESPACIO y R pertenecen exclusivamente al cronometro.
+    ; ESPACIO pertenece exclusivamente al cronometro.
     cmp al, ' '
     je .toggle_stopwatch
-    cmp al, 'r'
-    je .reset_stopwatch
-    cmp al, 'R'
-    je .reset_stopwatch
 
 .check_exit:
     cmp al, 'q'
@@ -89,6 +91,8 @@ clock_run:
 
 .reset_stopwatch:
     call stopwatch_reset
+    cmp byte [current_mode], MODE_STOPWATCH
+    jne .main_loop
     call stopwatch_print
     jmp .main_loop
 
@@ -148,6 +152,7 @@ stopwatch_screen db 'Modo: CRONOMETRO', 0x0D, 0x0A
                  db 'Estado: ', 0
 
 clock_controls_message db 0x0D, 0x0A
+                       db '[R] Reiniciar cronometro', 0x0D, 0x0A
                        db '[M] Cambiar modo', 0x0D, 0x0A
                        db '[A] Configurar alarma  [C] Cancelar alarma', 0x0D, 0x0A
                        db '[Q/ESC] Finalizar', 0x0D, 0x0A, 0

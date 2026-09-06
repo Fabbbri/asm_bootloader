@@ -21,9 +21,9 @@ ALARM_COLOR_NORMAL equ 0x07
 ; Captura HH:MM. ESC conserva la alarma anterior y Q solicita salir.
 ; Salida: AL=0 si se cancelo, AL=1 si se configuro, AL=2 si se solicito salir.
 alarm_configure:
-    call sound_stop
 
 .restart:
+    mov byte [alarm_reference_second], 0xFF
     call console_clear
     mov si, alarm_configuration_header
     call console_print
@@ -31,11 +31,13 @@ alarm_configure:
     mov si, alarm_configuration_instructions
     call console_print
 
+    call alarm_redraw_notification
+
     mov byte [alarm_input_count], 0
     mov di, alarm_input_buffer
 
 .read_key:
-    call console_read_key_blocking
+    call alarm_read_key_live
 
     cmp al, KEY_ESCAPE
     je .cancel
@@ -77,7 +79,7 @@ alarm_configure:
     call console_print
     mov si, alarm_retry_message
     call console_print
-    call console_read_key_blocking
+    call alarm_read_key_live
     cmp al, 'q'
     je .request_exit
     cmp al, 'Q'
@@ -117,6 +119,30 @@ alarm_configure:
 .request_exit:
     mov al, 2
     ret
+
+; Espera cooperativa usada tanto en la captura como en el mensaje de error.
+; Mantiene el tiempo y la alarma anterior sin dibujar la pantalla principal.
+; Salida: AL = tecla. R se consume aqui y reinicia sin alterar la captura.
+alarm_read_key_live:
+.poll:
+    call alarm_check
+    call alarm_update_notification
+    call stopwatch_update
+    call time_update_alarm_reference
+    call console_read_key
+    test al, al
+    jz .idle
+    cmp al, 'r'
+    je .reset_stopwatch
+    cmp al, 'R'
+    je .reset_stopwatch
+    ret
+.reset_stopwatch:
+    call stopwatch_reset
+    jmp .poll
+.idle:
+    hlt
+    jmp .poll
 
 ; Salida: AL=1 si el caracter es decimal; AL=0 si no lo es.
 alarm_is_digit:
@@ -439,6 +465,7 @@ alarm_configuration_instructions db 0x0D, 0x0A
                                  db 'Ingrese la hora en formato HH:MM.', 0x0D, 0x0A
                                  db 'Rangos: HH 00-23 y MM 00-59.', 0x0D, 0x0A
                                  db '[BACKSPACE] Corregir  [ESC] Cancelar  [Q] Salir', 0x0D, 0x0A
+                                 db '[R] Reiniciar cronometro', 0x0D, 0x0A
                                  db 0x0D, 0x0A
                                  db 'Alarma: ', 0
 

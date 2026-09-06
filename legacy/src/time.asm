@@ -109,6 +109,70 @@ time_print_current_line:
     pop ax
     ret
 
+; Actualiza la referencia del editor (fila 2, columna 13) una vez por segundo.
+; Conserva el cursor de entrada y los registros usados, incluso ante error RTC.
+time_update_alarm_reference:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov ah, 0x02
+    int 0x1A
+    jc .error
+    cmp dh, [alarm_reference_second]
+    je .done
+    mov [alarm_reference_hour], ch
+    mov [alarm_reference_minute], cl
+    mov [alarm_reference_second], dh
+    jmp .draw
+.error:
+    cmp byte [alarm_reference_second], 0xFE
+    je .done
+    mov byte [alarm_reference_second], 0xFE
+.draw:
+    mov ah, 0x03             ; INT 10h: obtener cursor de la pagina 0
+    xor bh, bh
+    int 0x10
+    push dx                 ; posicion original de captura o mensaje de error
+    mov ah, 0x02
+    xor bh, bh
+    mov dh, 2
+    mov dl, 13
+    int 0x10
+    cmp byte [alarm_reference_second], 0xFE
+    je .draw_error
+    mov al, [alarm_reference_hour]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [alarm_reference_minute]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [alarm_reference_second]
+    call time_print_bcd
+    jmp .restore_cursor
+.draw_error:
+    mov si, rtc_error_value
+    call console_print
+.restore_cursor:
+    pop dx
+    mov ah, 0x02
+    xor bh, bh
+    int 0x10
+.done:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+alarm_reference_hour db 0
+alarm_reference_minute db 0
+alarm_reference_second db 0xFF
+
 ; Posiciona el cursor al inicio del campo HH:MM:SS del modo reloj.
 time_set_cursor:
     mov ah, 0x02

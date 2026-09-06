@@ -15,6 +15,8 @@ Controles generales:
 - `Enter`: aceptar la confirmacion inicial.
 - `M`: cambiar entre reloj y cronometro.
 - `Q` o `Esc`: finalizar el programa.
+- `R`: reiniciar el cronometro y dejarlo detenido desde ambos modos y durante
+  la captura de alarma, incluido el mensaje para reintentar una hora invalida.
 
 Controles disponibles unicamente en modo reloj:
 
@@ -24,14 +26,21 @@ Controles disponibles unicamente en modo reloj:
 Controles disponibles unicamente en modo cronometro:
 
 - `Espacio`: iniciar, pausar o reanudar el cronometro.
-- `R`: reiniciar el cronometro y dejarlo detenido.
 
 El modo reloj obtiene `HH:MM:SS` desde el RTC mediante `INT 1Ah`, funcion `02h`,
 y actualiza la pantalla cada segundo. El cronometro utiliza el contador de ticks
 del BIOS mediante `INT 1Ah`, funcion `00h`, por lo que mantiene un conteo
 independiente del RTC incluso cuando se muestra el modo reloj.
 Mientras el modo reloj esta visible, el cronometro puede seguir contando en
-segundo plano, pero sus teclas de control se ignoran hasta regresar a su modo.
+segundo plano, pero iniciar/pausar con Espacio requiere regresar a su modo. R funciona tambien
+desde el reloj.
+
+La captura conserva su pantalla aparte y consulta el teclado sin bloquear las
+actualizaciones del cronometro ni la comprobacion/notificacion de la alarma
+anterior. Esto tambien se mantiene al esperar un reintento tras una hora invalida.
+R no borra los caracteres ingresados. La hora de referencia se actualiza cada
+segundo, incluso durante el mensaje de reintento, conservando el cursor y la
+entrada. Si falla la lectura RTC, muestra --:--:-- hasta recuperarse.
 
 La alarma acepta horas entre `00:00` y `23:59`, permite corregir la entrada con
 `Backspace` y cancelar la captura con `Esc`. La pantalla de configuracion muestra
@@ -68,6 +77,7 @@ los modulos con `%include`; el resultado sigue siendo un solo `kernel.bin`.
 | `INT 10h` | `AH=00h` — establecer modo de video | `mov ax, 0x0003`<br>`int 0x10` | Activa el modo de texto 80x25, limpia la pantalla y reinicia el cursor. Se usa al iniciar Stage 1 y al redibujar la interfaz. |
 | `INT 10h` | `AH=0Eh` — salida teletipo | `mov ah, 0x0E`<br>`mov al, caracter`<br>`int 0x10` | Imprime el caracter almacenado en `AL` y avanza el cursor. Se utiliza para mostrar todos los mensajes y valores de tiempo. |
 | `INT 10h` | `AH=02h` — posicionar cursor | `mov ah, 0x02`<br>`mov dh, fila`<br>`mov dl, columna`<br>`int 0x10` | Coloca el cursor en una posicion especifica. Permite actualizar `HH:MM:SS` sin redibujar toda la pantalla. |
+| `INT 10h` | `AH=03h` — leer posicion del cursor | `mov ah, 0x03`<br>`int 0x10` | Guarda la posicion del cursor antes de actualizar la hora en la captura de alarma. |
 | `INT 10h` | `AH=13h` — escribir cadena con atributo | `mov ax, 0x1300`<br>`int 0x10` | Dibuja el aviso de alarma sobre la pantalla coloreada. |
 | `INT 13h` | `AH=00h` — reiniciar unidad | `xor ah, ah`<br>`mov dl, [boot_drive]`<br>`int 0x13` | Reinicia el estado de la unidad desde la que arranco el BIOS antes de intentar leer Stage 2. |
 | `INT 13h` | `AH=02h` — leer sectores | `mov ah, 0x02`<br>`mov al, KERNEL_SECTORS`<br>`mov cl, 0x02`<br>`int 0x13` | Lee Stage 2 desde el disco y lo copia a `ES:BX`. `DL` identifica la unidad y `CF` indica si ocurrio un error. |
