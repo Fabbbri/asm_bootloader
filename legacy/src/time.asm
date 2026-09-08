@@ -1,0 +1,212 @@
+; =============================================================================
+; Hora real mediante RTC
+;
+; Lee HH:MM:SS del RTC y actualiza el campo de hora de la interfaz.
+; =============================================================================
+
+BITS 16
+
+; Invalida la cache del segundo para forzar un redibujado.
+time_force_refresh:
+    mov byte [last_rtc_second], 0xFF
+    call time_update
+    ret
+
+; Lee la hora real con INT 1Ah/AH=02h. El BIOS devuelve valores BCD empaquetados:
+; CH=hora, CL=minutos y DH=segundos. Solo escribe en pantalla cuando cambia el
+; segundo; si CF=1, muestra --:--:-- una unica vez.
+;
+; Preserva: AX, BX, CX, DX y SI.
+time_update:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+
+    mov ah, 0x02
+    int 0x1A
+    jc .read_error
+
+    cmp dh, [last_rtc_second]
+    je .done
+
+    mov [rtc_hour], ch
+    mov [rtc_minute], cl
+    mov [rtc_second], dh
+    mov [last_rtc_second], dh
+
+    call time_set_cursor
+    mov al, [rtc_hour]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [rtc_minute]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [rtc_second]
+    call time_print_bcd
+    jmp .done
+
+.read_error:
+    cmp byte [last_rtc_second], 0xFE
+    je .done
+
+    mov byte [last_rtc_second], 0xFE
+    call time_set_cursor
+    mov si, rtc_error_value
+    call console_print
+
+.done:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Imprime una lectura del RTC sin usar las coordenadas del modo reloj.
+; Preserva: AX, BX, CX, DX y SI.
+time_print_current_line:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+
+    mov si, current_time_label
+    call console_print
+
+    mov ah, 0x02
+    int 0x1A
+    jc .read_error
+
+    mov al, ch
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, cl
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, dh
+    call time_print_bcd
+    jmp .newline
+
+.read_error:
+    mov si, rtc_error_value
+    call console_print
+
+.newline:
+    mov si, time_newline
+    call console_print
+
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+; Actualiza la referencia del editor (fila 2, columna 13) una vez por segundo.
+; Conserva el cursor de entrada y los registros usados, incluso ante error RTC.
+time_update_alarm_reference:
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov ah, 0x02
+    int 0x1A
+    jc .error
+    cmp dh, [alarm_reference_second]
+    je .done
+    mov [alarm_reference_hour], ch
+    mov [alarm_reference_minute], cl
+    mov [alarm_reference_second], dh
+    jmp .draw
+.error:
+    cmp byte [alarm_reference_second], 0xFE
+    je .done
+    mov byte [alarm_reference_second], 0xFE
+.draw:
+    mov ah, 0x03             ; INT 10h: obtener cursor de la pagina 0
+    xor bh, bh
+    int 0x10
+    push dx                 ; posicion original de captura o mensaje de error
+    mov ah, 0x02
+    xor bh, bh
+    mov dh, 2
+    mov dl, 13
+    int 0x10
+    cmp byte [alarm_reference_second], 0xFE
+    je .draw_error
+    mov al, [alarm_reference_hour]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [alarm_reference_minute]
+    call time_print_bcd
+    mov al, ':'
+    call console_print_char
+    mov al, [alarm_reference_second]
+    call time_print_bcd
+    jmp .restore_cursor
+.draw_error:
+    mov si, rtc_error_value
+    call console_print
+.restore_cursor:
+    pop dx
+    mov ah, 0x02
+    xor bh, bh
+    int 0x10
+.done:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+
+alarm_reference_hour db 0
+alarm_reference_minute db 0
+alarm_reference_second db 0xFF
+
+; Posiciona el cursor al inicio del campo HH:MM:SS del modo reloj.
+time_set_cursor:
+    mov ah, 0x02
+    xor bh, bh
+    mov dh, 3
+    mov dl, 13
+    int 0x10
+    ret
+
+; Convierte el BCD empaquetado de AL en dos caracteres decimales.
+; Ejemplo: AL=0x23 imprime "23". Preserva AX y BX.
+time_print_bcd:
+    push ax
+    push bx
+
+    mov bl, al
+    shr al, 4
+    and al, 0x0F
+    add al, '0'
+    call console_print_char
+
+    mov al, bl
+    and al, 0x0F
+    add al, '0'
+    call console_print_char
+
+    pop bx
+    pop ax
+    ret
+
+last_rtc_second db 0xFF
+rtc_hour db 0
+rtc_minute db 0
+rtc_second db 0
+rtc_error_value db '--:--:--', 0
+current_time_label db 'Hora actual: ', 0
+time_newline db 0x0D, 0x0A, 0
